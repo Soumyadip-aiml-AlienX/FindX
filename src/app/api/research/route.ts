@@ -7,8 +7,18 @@ const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const YOUTUBE_COOKIE = process.env.YOUTUBE_COOKIE || '';
 
 const aai = new AssemblyAI({ apiKey: ASSEMBLYAI_API_KEY });
+
+// Initialize play-dl with cookies if available
+if (YOUTUBE_COOKIE) {
+  play.setToken({
+    youtube: {
+      cookie: YOUTUBE_COOKIE
+    }
+  }).catch(e => console.error("FAILED TO SET YOUTUBE COOKIE:", e.message));
+}
 
 // Helper: Search YouTube with custom date filter
 async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: number = 4) {
