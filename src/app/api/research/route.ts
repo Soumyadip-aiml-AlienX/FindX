@@ -55,7 +55,7 @@ async function sniffModels() {
 
 // Helper: Ask Gemini with automatic fallback and retry logic (DIRECT FETCH VERSION)
 async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
-  const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+  const models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"];
   let lastError: any = null;
 
   console.log("DEBUG: askGemini triggered (DIRECT FETCH MODE).");
@@ -66,7 +66,9 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
       try {
         console.log(`DEBUG: Attempting Direct Fetch with model: ${modelName}`);
         
-        const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+        // Ensure models/ prefix is present for the direct URL
+        const fullModelName = modelName.startsWith("models/") ? modelName : `models/${modelName}`;
+        const url = `https://generativelanguage.googleapis.com/v1/${fullModelName}:generateContent?key=${GEMINI_API_KEY}`;
         
         const payload = {
           contents: [{ parts: [{ text: prompt }] }],
@@ -124,22 +126,13 @@ export async function POST(request: Request) {
     console.log("BRAIN INITIALIZED. Keys present.");
     await sniffModels();
 
-    // Model Sniffer: List authorized models immediately
-    try {
-      const modelList = await ai.listModels();
-      console.log("DEBUG: --- START AUTHORIZED MODELS LIST ---");
-      modelList.models.forEach(m => console.log(`DEBUG: Authorized Model: ${m.name}`));
-      console.log("DEBUG: --- END AUTHORIZED MODELS LIST ---");
-    } catch (e: any) {
-      console.error("DEBUG: Model Sniffer failed:", e.message || e);
-    }
-
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 1: SEARCHING ---");
-    const mainQuery = `best ${category} under ${budget} India 2024 full reviews comparison benchmark`;
-    const allVideos = await searchYouTube(mainQuery, 25, 4);
+    const currentYear = new Date().getFullYear();
+    const mainQuery = `best ${category} under ${budget} India ${currentYear} full reviews comparison benchmark`;
+    const allVideos = await searchYouTube(mainQuery, 25, 6);
     console.log(`Found ${allVideos.length} videos.`);
 
     const summaryResults: (string | null)[] = [];
