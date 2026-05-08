@@ -45,7 +45,7 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 // Helper: Ask Gemini a quick question (plain text response)
 async function askGemini(prompt: string): Promise<string> {
   const res = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-1.5-flash',
     contents: prompt,
   });
   return res.text || '';
@@ -54,12 +54,15 @@ async function askGemini(prompt: string): Promise<string> {
 // Helper: Ask Gemini for JSON response
 async function askGeminiJSON(prompt: string): Promise<any> {
   const res = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-1.5-flash',
     contents: prompt,
     config: { responseMimeType: "application/json" }
   });
   return JSON.parse(res.text || "{}");
 }
+
+// Allow up to 60 seconds for the full research pipeline (Vercel Hobby max)
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
@@ -75,13 +78,13 @@ export async function POST(request: Request) {
     // STAGE 1: BROAD YOUTUBE SEARCH
     // Search "best mobile under 25000" and get all top videos from last 4 months
     // ─────────────────────────────────────────────────────────────────────────
-    const mainQuery = `best ${category} under ${budget} India`;
-    const allVideos = await searchYouTube(mainQuery, 15, 4);
+    const mainQuery = `best ${category} under ${budget} India 2024 reviews comparison`;
+    const allVideos = await searchYouTube(mainQuery, 20, 4);
 
     // Fetch transcripts of ALL these videos in parallel (this is "watching" them)
     const transcriptResults = await Promise.all(
       allVideos.map(async (video: any) => {
-        const text = await getTranscript(video.id, 4000);
+        const text = await getTranscript(video.id, 10000);
         return {
           title: video.title,
           date: video.publishedAt,
