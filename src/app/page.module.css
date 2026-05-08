@@ -578,3 +578,62 @@
   font-size: 1.2rem;
   line-height: 1.6;
 }
+
+.methodologySection {
+  margin-top: 5rem;
+  padding: 3rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 32px;
+  text-align: left;
+}
+
+.methodologyTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 1.4rem;
+  color: white;
+  margin-bottom: 2rem;
+}
+
+.methodologyIcon {
+  color: var(--accent-primary);
+}
+
+.methodologyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+}
+
+.methodologyStep {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.stepNum {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--accent-primary);
+  opacity: 0.5;
+  letter-spacing: 0.2em;
+}
+
+.stepText {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.stepText strong {
+  color: white;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.newSearchBtn {
+  margin: 4rem auto 0;
+  display: block;
+}

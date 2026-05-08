@@ -473,10 +473,42 @@ export default function Home() {
               )}
             </div>
 
+            <div className={styles.methodologySection}>
+              <h3 className={styles.methodologyTitle}>
+                <ShieldCheck size={20} className={styles.methodologyIcon} />
+                Our Research Methodology
+              </h3>
+              <div className={styles.methodologyGrid}>
+                <div className={styles.methodologyStep}>
+                  <div className={styles.stepNum}>01</div>
+                  <div className={styles.stepText}>
+                    <strong>Market Scan:</strong> Scanned 20 top reviews from the last 6 months to identify current market leaders.
+                  </div>
+                </div>
+                <div className={styles.methodologyStep}>
+                  <div className={styles.stepNum}>02</div>
+                  <div className={styles.stepText}>
+                    <strong>Calibration:</strong> Prioritized the latest releases and verified brand reliability for the Indian market.
+                  </div>
+                </div>
+                <div className={styles.methodologyStep}>
+                  <div className={styles.stepNum}>03</div>
+                  <div className={styles.stepText}>
+                    <strong>Deep Analysis:</strong> "Watched" and analyzed full transcripts of deep-dive reviews for top candidates.
+                  </div>
+                </div>
+                <div className={styles.methodologyStep}>
+                  <div className={styles.stepNum}>04</div>
+                  <div className={styles.stepText}>
+                    <strong>The Verdict:</strong> Performed a side-by-side competition to find your perfect match.
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <button 
-              className="btn-secondary" 
-              style={{marginTop: '3rem', margin: '3rem auto', display: 'block'}}
-              onClick={() => setSearchState('idle')}
+              className={`btn-secondary ${styles.newSearchBtn}`}
+              onClick={() => { playSound('click'); setResults(null); setSearchState('idle'); }}
             >
               Start New Search
             </button>
