@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from '@google/generative-ai';
 import { YoutubeTranscript } from 'youtube-transcript';
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
@@ -44,24 +44,23 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 
 // Helper: Ask Gemini a quick question (plain text response)
 async function askGemini(prompt: string): Promise<string> {
-  const res = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
-    contents: prompt,
-  });
-  return res.text || '';
+  const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const res = await model.generateContent(prompt);
+  const response = await res.response;
+  return response.text() || '';
 }
 
 // Helper: Ask Gemini for JSON response
 async function askGeminiJSON(prompt: string): Promise<any> {
-  const res = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
-    contents: prompt,
-    config: { responseMimeType: "application/json" }
+  const model = ai.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+    generationConfig: { responseMimeType: "application/json" }
   });
+  const res = await model.generateContent(prompt);
+  const response = await res.response;
+  const text = response.text() || "{}";
   
-  const text = res.text || "{}";
   try {
-    // Attempt to clean the response if it contains markdown backticks
     const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanedText);
   } catch (e) {
