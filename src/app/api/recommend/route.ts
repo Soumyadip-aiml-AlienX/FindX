@@ -113,36 +113,37 @@ export async function POST(request: Request) {
 
     // Step 4 & 5: LLM extraction and comparison
     const prompt = `
-      You are an expert tech reviewer analyzing YouTube transcripts to recommend the best ${category} under ₹${budget} in India.
+      You are an expert tech reviewer recommending the best ${category} under ₹${budget} in India.
       The user prioritizes: ${requirements.join(', ')}.
       ${finalCompany && finalCompany !== 'Any' ? `CRITICAL: The user PREFERS devices from these brands: ${finalCompany}. You MUST heavily prioritize recommending devices from these brands if they fit the criteria.` : ''}
 
-      Analyze the following transcript snippets from recent top Indian tech YouTube videos.
-      Extract the top 2 recommended devices that fit the budget and the user's priorities.
+      ${combinedTranscripts 
+        ? `Analyze the following transcript snippets from recent top Indian tech YouTube videos to extract recommendations:
+           ${combinedTranscripts}`
+        : `Note: Recent video transcripts were unavailable. Use your internal knowledge of the Indian market (up to late 2024/2025) to recommend the absolute best current devices fitting the budget.`
+      }
       
+      Extract the top 2 recommended devices.
       Return ONLY a JSON object exactly matching this schema:
       {
         "devices": [
           {
             "name": "Full device name",
             "price": "estimated price in INR as integer",
-            "release_year": "Year the device was released, e.g. 2024",
-            "buy_link": "A valid Amazon India or Flipkart search URL for this exact device model",
+            "release_year": "Year the device was released",
+            "buy_link": "A valid Amazon India or Flipkart search URL",
             "specs": {
-              "processor": "Processor / SoC details",
-              "display": "Screen size, resolution, panel type, and refresh rate",
-              "ram_storage": "RAM and Storage info",
-              "battery": "Battery capacity and charging speed",
-              "camera_or_gpu": "Camera specs for mobile, GPU for laptop"
+              "processor": "Processor details",
+              "display": "Display details",
+              "ram_storage": "RAM and Storage",
+              "battery": "Battery and charging",
+              "camera_or_gpu": "Camera or GPU"
             },
-            "pros": ["pro 1 related to user priorities", "pro 2", "pro 3"],
-            "verdict": "Why this specifically fits the user based on reviews"
+            "pros": ["pro 1", "pro 2", "pro 3"],
+            "verdict": "Why this fits the user"
           }
         ]
       }
-
-      Transcripts:
-      ${combinedTranscripts}
     `;
 
     const response = await ai.getGenerativeModel({
