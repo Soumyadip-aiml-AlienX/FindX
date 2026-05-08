@@ -170,10 +170,10 @@ export default function Home() {
   };
 
   const loadingStepsText = [
-    "Searching Indian YouTube tech channels...",
-    "Analyzing video transcripts & reviews...",
-    "Fact-checking against your brand & spec needs...",
-    "Formulating the final verdict..."
+    "Scanning top 20 YouTube reviews from last 6 months...",
+    "Shortlisting the top 3 candidate devices...",
+    "Deep-diving into specific video reviews for candidates...",
+    "Running final competition to find the ultimate winner..."
   ];
 
   return (
