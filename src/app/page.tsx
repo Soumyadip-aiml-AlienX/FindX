@@ -275,6 +275,7 @@ export default function Home() {
                       }}
                     >
                       {isTop && <Star size={12} className={styles.topStar} fill="currentColor" />}
+                      {company}
                     </button>
                   )})}
                 </div>
