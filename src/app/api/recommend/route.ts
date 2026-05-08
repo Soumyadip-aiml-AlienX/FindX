@@ -49,25 +49,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, recommendation: { devices: [] } }); 
     }
 
-    // STAGE 1 & 2: Market Scan and Candidate Selection (Combined for speed)
+    // STAGE 1 & 2: Market Scan (Top 15 videos, prioritizing recency)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     
-    const marketQuery = `best ${category} under ${budget} india 2024 reviews`;
+    const marketQuery = `best ${category} under ${budget} india reviews comparison 2024`;
+    // Using order=relevance but filtering for last 6 months to ensure quality + recency
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(marketQuery)}&type=video&maxResults=15&publishedAfter=${sixMonthsAgo.toISOString()}&relevanceLanguage=en&regionCode=IN&key=${YOUTUBE_API_KEY}`;
     
     const marketRes = await fetch(searchUrl);
     const marketData = await marketRes.json();
-    const marketContext = (marketData.items || []).map((v: any) => v.snippet.title).join(', ');
+    // Include the publication date in the context so the LLM can prioritize
+    const marketContext = (marketData.items || []).map((v: any) => `[Date: ${v.snippet.publishedAt}] ${v.snippet.title}`).join('\n');
 
-    const filterPrompt = `Titles: ${marketContext}. Pick top 3 ${category} models under ₹${budget} for ${requirements.join(', ')}. Preferred: ${finalCompanies}. Return only names as comma-separated list.`;
+    const filterPrompt = `
+      List of recent YouTube videos:
+      ${marketContext}
+
+      Identify the top 3 ${category} models under ₹${budget} for ${requirements.join(', ')}. 
+      CRITICAL: Give much more weight and importance to the LATEST videos (the ones with the most recent dates). 
+      Preferred brands: ${finalCompanies}. 
+      Return only device names as a comma-separated list.
+    `;
     const filterRes = await ai.getGenerativeModel({ model: 'gemini-1.5-flash' }).generateContent(filterPrompt);
     const candidates = filterRes.response.text().split(',').map(c => c.trim()).slice(0, 3);
 
-    // STAGE 3: Parallel Deep Research (Speed optimization)
+    // STAGE 3: Parallel Deep Research (Researching winners of the recency filter)
     const researchResults = await Promise.all(candidates.map(async (candidate) => {
       try {
-        const reviewVideos = await searchYouTube(`${candidate} review india`, 1);
+        const reviewVideos = await searchYouTube(`${candidate} review india latest 2024`, 1);
         if (reviewVideos.length > 0) {
           const transcript = await getTranscriptText(reviewVideos[0].id);
           return `DEVICE: ${candidate}\nDATA: ${transcript ? transcript.substring(0, 3000) : 'Use internal knowledge'}`;
