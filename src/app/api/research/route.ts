@@ -40,6 +40,7 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
     console.error(`Transcript error for ${videoId}:`, e);
     return null;
   }
+}
 // Helper: Raw Fetch Model Sniffer
 async function sniffModels() {
   try {
