@@ -125,23 +125,26 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
 
 // Helper: Get transcript text (with size limit)
 async function getTranscript(videoId: string, charLimit: number = 6000) {
+  const cleanId = videoId.trim().replace(/[^a-zA-Z0-9_-]/g, '');
   try {
     const play = await import('play-dl');
     
     // Attempt 1: Native Transcript
     try {
-      const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+      const transcript = await YoutubeTranscript.fetchTranscript(cleanId);
       if (transcript && transcript.length > 0) {
         return transcript.map(t => t.text).join(' ').substring(0, charLimit);
       }
     } catch (e) {
-      console.warn(`Native transcript failed for ${videoId}.`);
+      console.warn(`Native transcript failed for ${cleanId}.`);
     }
 
     // Attempt 2: Audio Extraction (Using Mobile Identity)
     if (ASSEMBLYAI_API_KEY) {
-      console.log(`DEBUG: Attempting mobile-spoof fetch for ${videoId}...`);
-      const info = await play.video_info(`https://www.youtube.com/watch?v=${videoId}`);
+      const videoUrl = `https://www.youtube.com/watch?v=${cleanId}`;
+      console.log(`DEBUG: Attempting stealth fetch for: ${videoUrl}`);
+      
+      const info = await play.video_basic_info(videoUrl);
       const stream = await play.stream_from_info(info, { quality: 0 });
       
       if (stream && stream.url) {
@@ -153,7 +156,7 @@ async function getTranscript(videoId: string, charLimit: number = 6000) {
       }
     }
   } catch (e) {
-    console.error(`SCRAPER BLOCKED for ${videoId}:`, e.message);
+    console.error(`SCRAPER BLOCKED for ${cleanId}:`, e.message);
   }
   return "";
 }
