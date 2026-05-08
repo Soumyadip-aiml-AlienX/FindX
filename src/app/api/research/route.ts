@@ -7,27 +7,35 @@ const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const YOUTUBE_COOKIE = process.env.YOUTUBE_COOKIE || '';
+const YOUTUBE_COOKIE = process.env.YOUTUBE_COOKIE;
 
-const aai = new AssemblyAI({ apiKey: ASSEMBLYAI_API_KEY });
+// Human-like User Agents
+const USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+];
 
-// Initialize play-dl with cookies if available
-if (YOUTUBE_COOKIE) {
-  // SUPER SANITIZER: Keep ONLY standard printable ASCII characters
-  const cleanCookie = YOUTUBE_COOKIE
-    .replace(/^cookie:\s*/i, '')                 // Remove "cookie:" prefix
-    .replace(/[^\x20-\x7E]/g, '')                // Remove ALL non-printable ASCII (Unicode, hidden chars)
-    .trim();
+const getRandomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
-  if (cleanCookie) {
-    console.log(`DEBUG: Cookie Sanitized. Length: ${cleanCookie.length}`);
-    play.setToken({
+async function initYouTube() {
+  if (!YOUTUBE_COOKIE) return;
+  const cleanCookie = YOUTUBE_COOKIE.trim().replace(/[\n\r\t]/g, '');
+  
+  try {
+    const play = await import('play-dl');
+    await play.setToken({
       youtube: {
         cookie: cleanCookie
       }
-    }).catch(e => console.error("FAILED TO SET YOUTUBE COOKIE:", e.message));
+    });
+    console.log("DEBUG: YouTube Auth Session Active.");
+  } catch (e) {
+    console.error("YouTube Auth Failed:", e.message);
   }
 }
+
+const aai = new AssemblyAI({ apiKey: ASSEMBLYAI_API_KEY });
 
 // Curated Trusted Channels
 const TRUSTED_CHANNELS = {
@@ -49,16 +57,20 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
     const data = await res.json();
     
     if (data.error) {
-      console.error(`YOUTUBE API QUOTA HIT. Switching to Stealth Scraper...`);
-      // FALLBACK: Use play-dl (No API Key required)
-      const play = await import('play-dl');
-      const results = await play.search(query, { limit: maxResults, source: { youtube: 'video' } });
-      return results.map(v => ({
-        id: v.id,
-        title: v.title,
-        channelTitle: v.channel?.name || 'Unknown',
-        publishedAt: v.uploadedAt || new Date().toISOString(),
-      }));
+      console.warn(`YOUTUBE API QUOTA HIT. Attempting Stealth Scraper...`);
+      try {
+        const play = await import('play-dl');
+        const results = await play.search(query, { limit: maxResults, source: { youtube: 'video' } });
+        return results.map(v => ({
+          id: v.id || '',
+          title: v.title || 'Untitled',
+          channelTitle: v.channel?.name || 'Unknown Channel',
+          publishedAt: v.uploadedAt || new Date().toISOString(),
+        })).filter(v => v.id.length > 0);
+      } catch (scrapError) {
+        console.error("STEALTH SCRAPER FAILED:", scrapError.message);
+        return [];
+      }
     }
 
     if (data.items && data.items.length > 0) {
