@@ -13,17 +13,20 @@ const aai = new AssemblyAI({ apiKey: ASSEMBLYAI_API_KEY });
 
 // Initialize play-dl with cookies if available
 if (YOUTUBE_COOKIE) {
-  // SANITIZE: Remove "cookie:" prefix, newlines, and extra spaces
+  // SUPER SANITIZER: Keep ONLY standard printable ASCII characters
   const cleanCookie = YOUTUBE_COOKIE
-    .replace(/^cookie:\s*/i, '')
-    .replace(/[\r\n]+/g, '')
+    .replace(/^cookie:\s*/i, '')                 // Remove "cookie:" prefix
+    .replace(/[^\x20-\x7E]/g, '')                // Remove ALL non-printable ASCII (Unicode, hidden chars)
     .trim();
 
-  play.setToken({
-    youtube: {
-      cookie: cleanCookie
-    }
-  }).catch(e => console.error("FAILED TO SET YOUTUBE COOKIE:", e.message));
+  if (cleanCookie) {
+    console.log(`DEBUG: Cookie Sanitized. Length: ${cleanCookie.length}`);
+    play.setToken({
+      youtube: {
+        cookie: cleanCookie
+      }
+    }).catch(e => console.error("FAILED TO SET YOUTUBE COOKIE:", e.message));
+  }
 }
 
 // Helper: Search YouTube with custom date filter
