@@ -224,6 +224,13 @@
   box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3);
 }
 
+.brandChip.activeExclude {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: #f43f5e;
+  color: #fb7185;
+  box-shadow: 0 4px 15px rgba(244, 63, 94, 0.2);
+}
+
 .topBrandChip {
   border-color: rgba(255, 215, 0, 0.4);
   font-weight: 700;

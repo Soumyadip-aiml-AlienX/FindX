@@ -49,6 +49,7 @@ export default function Home() {
   const [searchState, setSearchState] = useState<SearchState>('idle');
   const [loadingStep, setLoadingStep] = useState(0);
   const [results, setResults] = useState<any>(null);
+  const [excludedBrands, setExcludedBrands] = useState<string[]>([]);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [limitWarningId, setLimitWarningId] = useState<NodeJS.Timeout | null>(null);
   const playSound = (type: 'click' | 'error') => {
@@ -148,6 +149,7 @@ export default function Home() {
           budget: Number(budget),
           category,
           preferredCompanies: preferredCompanies.length > 0 ? preferredCompanies : ['Any'],
+          excludedBrands,
           requirements: isAllRounder ? ['Best All-Rounder Device'] : selectedReqs,
         }),
       });
@@ -273,9 +275,35 @@ export default function Home() {
                       }}
                     >
                       {isTop && <Star size={12} className={styles.topStar} fill="currentColor" />}
-                      {company}
                     </button>
                   )})}
+                </div>
+
+                <div style={{marginTop: '1.5rem'}}>
+                  <label className={styles.label} style={{fontSize: '0.85rem', color: '#94a3b8'}}>Brands to Exclude (Never show these)</label>
+                  <div className={styles.chips}>
+                    {COMPANIES[category].map(company => {
+                      const isExcluded = excludedBrands.includes(company);
+                      return (
+                        <button
+                          key={`exclude-${company}`}
+                          className={`${styles.brandChip} ${isExcluded ? styles.activeExclude : ''}`}
+                          style={{ borderColor: isExcluded ? '#f43f5e' : '' }}
+                          onClick={() => {
+                            playSound('click');
+                            if (isExcluded) {
+                              setExcludedBrands(excludedBrands.filter(b => b !== company));
+                            } else {
+                              setExcludedBrands([...excludedBrands, company]);
+                              setPreferredCompanies(preferredCompanies.filter(b => b !== company));
+                            }
+                          }}
+                        >
+                          {company}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

@@ -193,7 +193,10 @@ async function askGeminiJSON(prompt: string): Promise<any> { return askBrain(pro
 
 export async function POST(request: Request) {
   try {
-    const { budget, category, selectedReqs, preferredCompanies } = await request.json();
+    const { budget, category, selectedReqs, preferredCompanies, excludedBrands } = await request.json();
+    const excludeQuery = excludedBrands && excludedBrands.length > 0 
+      ? excludedBrands.map((b: string) => ` -"${b}"`).join('') 
+      : '';
     const brands = preferredCompanies && preferredCompanies.length > 0 ? preferredCompanies.join(', ') : 'Any';
     const specs = selectedReqs ? selectedReqs.join(', ') : 'All-Rounder';
 
@@ -208,8 +211,7 @@ export async function POST(request: Request) {
     // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 1: SEARCHING (LAST 4 MONTHS) ---");
-    const currentYear = new Date().getFullYear();
-    const mainQuery = `best ${category} under ${budget} India 2026 reviews comparison`;
+    const mainQuery = `best ${category} under ${budget} India 2026 reviews comparison${excludeQuery}`;
 
     // STRICT 4 MONTH FILTER as requested
     const allVideos = await searchYouTube(mainQuery, 25, 4);
@@ -238,8 +240,9 @@ export async function POST(request: Request) {
 Carefully analyze this video transcript: "${video.title}"
 Transcript: ${transcript}
 
-TASK: Extract every technical detail, benchmark, and Indian price (₹) mentioned.
-STRICT RULE: ONLY use data from this transcript. Do NOT use your internal knowledge from 2023 or 2024.
+TASK: Extract every technical detail, benchmark, and the CURRENT MAY 2026 market price (₹) mentioned.
+STRICT RULE: Focus ONLY on the current price today. If the reviewer says "it launched at 40k but now it is 35k," use 35k.
+EXCLUDE RULE: Do NOT mention any devices from these brands: ${excludedBrands?.join(', ') || 'None'}.
 Focus specifically on ${category} under ₹${budget}.
       `;
 
