@@ -87,42 +87,54 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
   
   // --- METHOD 1: GROQ (Primary) ---
   if (GROQ_API_KEY) {
-    // llama-3.1-8b-instant has the highest free-tier limits on Groq
-    const groqModels = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"];
+    const groqModels = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768"];
     
     for (const model of groqModels) {
-      try {
-        console.log(`DEBUG: Attempting Groq (${model})...`);
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${GROQ_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [{ role: "user", content: prompt }],
-            response_format: useJSON ? { type: "json_object" } : undefined,
-            temperature: 0.1
-          })
-        });
+      let attempts = 0;
+      while (attempts < 2) {
+        try {
+          console.log(`DEBUG: Attempting Groq (${model})...`);
+          const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${GROQ_API_KEY}`
+            },
+            body: JSON.stringify({
+              model: model,
+              messages: [{ role: "user", content: prompt }],
+              response_format: useJSON ? { type: "json_object" } : undefined,
+              temperature: 0.1
+            })
+          });
 
-        const data = await res.json();
-        
-        if (res.ok && data.choices?.[0]?.message?.content) {
-          let text = data.choices[0].message.content;
-          if (useJSON) {
-            try { return JSON.parse(text); } catch (e) {
-              text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-              return JSON.parse(text);
+          const data = await res.json();
+          
+          if (res.ok && data.choices?.[0]?.message?.content) {
+            let text = data.choices[0].message.content;
+            if (useJSON) {
+              try { return JSON.parse(text); } catch (e) {
+                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                return JSON.parse(text);
+              }
             }
+            return text;
+          } 
+          
+          // AUTO-RETRY ON RATE LIMIT
+          if (data.error?.code === "rate_limit_exceeded") {
+            console.warn(`DEBUG: Groq Rate Limit. Waiting 8s and retrying...`);
+            await new Promise(r => setTimeout(r, 8000));
+            attempts++;
+            continue;
           }
-          return text;
-        } else {
-          console.error(`DEBUG: Groq ${model} API Error:`, data.error?.message || data.error || "Quota/Model Error");
+
+          console.error(`DEBUG: Groq ${model} API Error:`, data.error?.message || "Quota/Model Error");
+          break; // Try next model
+        } catch (e: any) {
+          console.warn(`DEBUG: Groq ${model} exception:`, e.message);
+          break;
         }
-      } catch (e: any) {
-        console.warn(`DEBUG: Groq ${model} exception:`, e.message);
       }
     }
   }
@@ -130,13 +142,13 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
   console.warn("Groq failed. Falling back to Gemini...");
 
   // --- METHOD 2: GEMINI (Fallback) ---
-  // Use v1beta with the models/ prefix for maximum compatibility
   const geminiModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
   for (const modelName of geminiModels) {
     try {
       console.log(`DEBUG: Attempting Gemini (${modelName})...`);
       await new Promise(r => setTimeout(r, 6000));
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+      // Using v1 stable for models that don't like v1beta
+      const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
