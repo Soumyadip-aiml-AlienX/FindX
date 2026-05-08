@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Sparkles, CheckCircle2, ChevronRight, Laptop, Smartphone, Building2, Cpu, Monitor, MemoryStick, Battery, Camera, Gamepad2, ShoppingCart, Star } from 'lucide-react';
+import { Search, Sparkles, CheckCircle2, ChevronRight, Laptop, Smartphone, Building2, Cpu, Monitor, MemoryStick, Battery, Camera, Gamepad2, ShoppingCart, Star, ShieldCheck } from 'lucide-react';
 import styles from './page.module.css';
 
 const REQUIREMENTS = {
@@ -132,7 +132,7 @@ export default function Home() {
 
     const loadingInterval = setInterval(() => {
       setLoadingStep(prev => {
-        if (prev >= 3) {
+        if (prev >= 4) {
           clearInterval(loadingInterval);
           return prev;
         }
@@ -170,10 +170,11 @@ export default function Home() {
   };
 
   const loadingStepsText = [
-    "Scanning top 20 YouTube reviews from last 6 months...",
-    "Shortlisting the top 3 candidate devices...",
-    "Deep-diving into specific video reviews for candidates...",
-    "Running final competition to find the ultimate winner..."
+    "Searching YouTube & watching all recent review videos...",
+    "Extracting every device mentioned & comparing them...",
+    "Searching for dedicated reviews of top 3 candidates...",
+    "Picking top 2 finalists from reviews...",
+    "Final head-to-head battle to crown the winner..."
   ];
 
   return (
@@ -482,25 +483,31 @@ export default function Home() {
                 <div className={styles.methodologyStep}>
                   <div className={styles.stepNum}>01</div>
                   <div className={styles.stepText}>
-                    <strong>Market Scan:</strong> Scanned 20 top reviews from the last 4 months to identify current market leaders.
+                    <strong>Watch All Videos:</strong> Searched YouTube and watched 15+ recent review &amp; comparison videos from the last 4 months.
                   </div>
                 </div>
                 <div className={styles.methodologyStep}>
                   <div className={styles.stepNum}>02</div>
                   <div className={styles.stepText}>
-                    <strong>Calibration:</strong> Prioritized the latest releases and verified brand reliability for the Indian market.
+                    <strong>Extract &amp; Compare:</strong> Identified every device mentioned, prioritized the latest ones, and narrowed down to the top 3.
                   </div>
                 </div>
                 <div className={styles.methodologyStep}>
                   <div className={styles.stepNum}>03</div>
                   <div className={styles.stepText}>
-                    <strong>Deep Analysis:</strong> "Watched" and analyzed full transcripts of deep-dive reviews for top candidates.
+                    <strong>Review Deep-Dive:</strong> Went back to YouTube and watched dedicated reviews for each of the 3 candidates.
                   </div>
                 </div>
                 <div className={styles.methodologyStep}>
                   <div className={styles.stepNum}>04</div>
                   <div className={styles.stepText}>
-                    <strong>The Verdict:</strong> Performed a side-by-side competition to find your perfect match.
+                    <strong>Pick Finalists:</strong> Selected the top 2 devices based on real reviewer feedback and user priorities.
+                  </div>
+                </div>
+                <div className={styles.methodologyStep}>
+                  <div className={styles.stepNum}>05</div>
+                  <div className={styles.stepText}>
+                    <strong>Final Battle:</strong> Head-to-head comparison of the 2 finalists to crown the ultimate winner.
                   </div>
                 </div>
               </div>
