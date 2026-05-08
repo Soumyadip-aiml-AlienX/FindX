@@ -70,49 +70,57 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
   }
 }
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-
 // Helper: Ask the AI Brain (Groq Primary, Gemini Fallback)
 async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> {
-  // --- METHOD 1: GROQ (Primary - Ultra Fast) ---
+  // --- METHOD 1: GROQ (Primary) ---
   if (GROQ_API_KEY) {
-    try {
-      console.log("DEBUG: Attempting Groq (Llama 3)...");
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${GROQ_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "llama3-70b-8192", 
-          messages: [{ role: "user", content: prompt }],
-          response_format: useJSON ? { type: "json_object" } : undefined,
-          temperature: 0.1
-        })
-      });
+    // Try both 70B and 8B models for maximum reliability
+    const groqModels = ["llama-3.1-70b-versatile", "llama3-8b-8192"];
+    
+    for (const model of groqModels) {
+      try {
+        console.log(`DEBUG: Attempting Groq (${model})...`);
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${GROQ_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: "user", content: prompt }],
+            response_format: useJSON ? { type: "json_object" } : undefined,
+            temperature: 0.1
+          })
+        });
 
-      const data = await res.json();
-      if (res.ok && data.choices?.[0]?.message?.content) {
-        let text = data.choices[0].message.content;
-        if (useJSON) {
-          try { return JSON.parse(text); } catch (e) {
-            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(text);
+        const data = await res.json();
+        
+        if (res.ok && data.choices?.[0]?.message?.content) {
+          let text = data.choices[0].message.content;
+          if (useJSON) {
+            try { return JSON.parse(text); } catch (e) {
+              text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+              return JSON.parse(text);
+            }
           }
+          return text;
+        } else {
+          console.error(`DEBUG: Groq ${model} API Error:`, data.error?.message || "Unknown Error");
         }
-        return text;
+      } catch (e: any) {
+        console.warn(`DEBUG: Groq ${model} exception:`, e.message);
       }
-      console.warn("Groq failed, falling back to Gemini...");
-    } catch (e: any) {
-      console.warn("Groq Error:", e.message);
     }
   }
 
+  console.warn("All Groq models failed or Key missing. Falling back to Gemini...");
+
   // --- METHOD 2: GEMINI (Fallback) ---
-  const models = ["gemini-1.5-flash", "gemini-1.5-pro"];
-  for (const modelName of models) {
+  const geminiModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
+  for (const modelName of geminiModels) {
     try {
+      console.log(`DEBUG: Attempting Gemini (${modelName})...`);
       // Pacing for Gemini
       await new Promise(r => setTimeout(r, 6000));
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
@@ -132,13 +140,15 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
           return JSON.parse(text);
         }
         return text;
+      } else {
+        console.error(`DEBUG: Gemini ${modelName} API Error:`, data.error?.message || "Unknown Error");
       }
     } catch (e) {
-      console.warn(`Gemini ${modelName} failed.`);
+      console.warn(`DEBUG: Gemini ${modelName} exception.`);
     }
   }
 
-  throw new Error("All AI Brains are offline. Check your API Keys.");
+  throw new Error("CRITICAL: All AI Brains failed. Please check your GROQ and GEMINI API keys in Railway.");
 }
 
 async function askGemini(prompt: string): Promise<any> { return askBrain(prompt); }
