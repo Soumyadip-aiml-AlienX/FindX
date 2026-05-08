@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
+import { AssemblyAI } from 'assemblyai';
+import play from 'play-dl';
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
+
+const aai = new AssemblyAI({ apiKey: ASSEMBLYAI_API_KEY });
 
 // Helper: Search YouTube with custom date filter
 async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: number = 4) {
@@ -30,12 +35,38 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
 
 // Helper: Get transcript text (with size limit)
 async function getTranscript(videoId: string, charLimit: number = 8000) {
+  // METHOD 1: Try native transcript first (Fast & Free)
   try {
     const transcript = await YoutubeTranscript.fetchTranscript(videoId);
     return transcript.map(t => t.text).join(' ').substring(0, charLimit);
   } catch (e) {
-    console.error(`Transcript error for ${videoId}:`, e);
-    return null;
+    console.warn(`Native transcript failed for ${videoId}, attempting Audio-Listening (AssemblyAI)...`);
+    
+    // METHOD 2: Audio-Listening Fallback
+    if (!ASSEMBLYAI_API_KEY) {
+      console.error("Missing ASSEMBLYAI_API_KEY! Cannot listen to audio.");
+      return null;
+    }
+
+    try {
+      // Get direct audio stream URL using play-dl
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const streamInfo = await play.video_info(videoUrl);
+      const audioUrl = streamInfo.format[streamInfo.format.length - 1].url;
+
+      if (!audioUrl) throw new Error("Could not extract audio URL");
+
+      const transcript = await aai.transcripts.transcribe({
+        audio: audioUrl,
+        language_detection: true
+      });
+
+      console.log(`Audio-Listening success for ${videoId}`);
+      return transcript.text?.substring(0, charLimit) || null;
+    } catch (err: any) {
+      console.error(`Audio-Listening CRASHED for ${videoId}:`, err.message || err);
+      return null;
+    }
   }
 }
 
