@@ -76,8 +76,8 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
   console.log(`DEBUG: Brain Active. Keys -> Groq: ${!!GROQ_API_KEY}, Gemini: ${!!GEMINI_API_KEY}`);
   // --- METHOD 1: GROQ (Primary) ---
   if (GROQ_API_KEY) {
-    // Try the latest 2026 stable Groq models
-    const groqModels = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-8b-8192"];
+    // Mixtral and Gemma are the most stable "long-term" models on Groq
+    const groqModels = ["mixtral-8x7b-32768", "llama-3.3-70b-versatile", "gemma2-9b-it"];
     
     for (const model of groqModels) {
       try {
@@ -108,7 +108,7 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
           }
           return text;
         } else {
-          console.error(`DEBUG: Groq ${model} API Error:`, data.error?.message || "Unknown Error");
+          console.error(`DEBUG: Groq ${model} API Error:`, data.error?.message || data.error || "Unknown Error");
         }
       } catch (e: any) {
         console.warn(`DEBUG: Groq ${model} exception:`, e.message);
@@ -116,16 +116,17 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
     }
   }
 
-  console.warn("All Groq models failed or Key missing. Falling back to Gemini...");
+  console.warn("All Groq models failed. Falling back to Gemini...");
 
   // --- METHOD 2: GEMINI (Fallback) ---
-  const geminiModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
+  const geminiModels = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest"];
   for (const modelName of geminiModels) {
     try {
       console.log(`DEBUG: Attempting Gemini (${modelName})...`);
       // Pacing for Gemini
       await new Promise(r => setTimeout(r, 6000));
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+      // Using v1 stable
+      const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
