@@ -71,8 +71,7 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
         const url = `https://generativelanguage.googleapis.com/v1/${fullModelName}:generateContent?key=${GEMINI_API_KEY}`;
         
         const payload = {
-          contents: [{ parts: [{ text: prompt }] }],
-          generation_config: useJSON ? { response_mime_type: "application/json" } : undefined
+          contents: [{ parts: [{ text: prompt }] }]
         };
 
         const response = await fetch(url, {
