@@ -64,6 +64,9 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
     let retries = 2;
     while (retries > 0) {
       try {
+        // PACE: Wait 3 seconds to stay under Free Tier 20 RPM limit
+        await new Promise(r => setTimeout(r, 3000));
+        
         console.log(`DEBUG: Attempting Direct Fetch with model: ${modelName}`);
         
         // Ensure models/ prefix is present for the direct URL
