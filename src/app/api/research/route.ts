@@ -41,26 +41,28 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - monthsAgo);
   
-  console.log(`STRICT DATE LOCK: Only watching videos published after ${cutoff.toDateString()} (Exactly 4 Months)`);
-
+  console.log(`DEBUG: Starting search for [${query}]...`);
   const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&publishedAfter=${cutoff.toISOString()}&key=${YOUTUBE_API_KEY}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
     
     if (data.error) {
-      console.error(`YOUTUBE API ERROR (${query.substring(0,20)}...):`, data.error.message);
+      console.error(`YOUTUBE API ERROR:`, data.error.message);
       return [];
     }
 
-    if (data.items) {
+    if (data.items && data.items.length > 0) {
+      console.log(`DEBUG: Found ${data.items.length} videos for [${query}]`);
       return data.items.map((item: any) => ({
         id: item.id.videoId,
         title: item.snippet.title,
+        channelTitle: item.snippet.channelTitle,
         publishedAt: item.snippet.publishedAt,
       }));
     }
+    console.warn(`DEBUG: No videos found for [${query}]`);
   } catch (e) {
     console.error("YouTube search error:", e);
   }
