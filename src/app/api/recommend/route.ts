@@ -44,17 +44,21 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 
 // Helper: Ask Gemini a quick question (plain text response)
 async function askGemini(prompt: string): Promise<string> {
-  const res = await ai.getGenerativeModel({ model: 'gemini-1.5-flash' }).generateContent(prompt);
-  return res.response.text();
+  const res = await ai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: prompt,
+  });
+  return res.text || '';
 }
 
 // Helper: Ask Gemini for JSON response
 async function askGeminiJSON(prompt: string): Promise<any> {
-  const res = await ai.getGenerativeModel({ model: 'gemini-1.5-flash' }).generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: "application/json" }
+  const res = await ai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: prompt,
+    config: { responseMimeType: "application/json" }
   });
-  return JSON.parse(res.response.text() || "{}");
+  return JSON.parse(res.text || "{}");
 }
 
 export async function POST(request: Request) {
@@ -76,7 +80,7 @@ export async function POST(request: Request) {
 
     // Fetch transcripts of ALL these videos in parallel (this is "watching" them)
     const transcriptResults = await Promise.all(
-      allVideos.map(async (video) => {
+      allVideos.map(async (video: any) => {
         const text = await getTranscript(video.id, 4000);
         return {
           title: video.title,
