@@ -49,14 +49,6 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
 
   console.log("DEBUG: askGemini triggered.");
 
-  try {
-    const listResult = await genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Dummy to check SDK
-    const modelList = await genAI.listModels();
-    modelList.models.forEach(m => console.log(`DEBUG: Available Model: ${m.name}`));
-  } catch (e: any) {
-    console.error("DEBUG: Model Sniffer failed:", e.message || e);
-  }
-
   for (const modelName of models) {
     let retries = 2;
     while (retries > 0) {
@@ -99,15 +91,25 @@ export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    const { budget, category, requirements, preferredCompanies } = await request.json();
+    const { budget, category, selectedReqs, preferredCompanies, isAllRounder } = await request.json();
     const brands = preferredCompanies && preferredCompanies.length > 0 ? preferredCompanies.join(', ') : 'Any';
-    const specs = requirements.join(', ');
+    const specs = selectedReqs ? selectedReqs.join(', ') : 'All-Rounder';
 
     if (!YOUTUBE_API_KEY || !GEMINI_API_KEY) {
       console.error("CRITICAL: Missing API Keys! YOUTUBE:", !!YOUTUBE_API_KEY, "GEMINI:", !!GEMINI_API_KEY);
       return NextResponse.json({ success: true, recommendation: { devices: [] } });
     }
     console.log("BRAIN INITIALIZED. Keys present.");
+
+    // Model Sniffer: List authorized models immediately
+    try {
+      const modelList = await ai.listModels();
+      console.log("DEBUG: --- START AUTHORIZED MODELS LIST ---");
+      modelList.models.forEach(m => console.log(`DEBUG: Authorized Model: ${m.name}`));
+      console.log("DEBUG: --- END AUTHORIZED MODELS LIST ---");
+    } catch (e: any) {
+      console.error("DEBUG: Model Sniffer failed:", e.message || e);
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
