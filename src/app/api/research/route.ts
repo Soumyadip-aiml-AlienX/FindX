@@ -40,6 +40,8 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
   if (!YOUTUBE_API_KEY) return [];
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - monthsAgo);
+  
+  console.log(`STRICT DATE LOCK: Only watching videos published after ${cutoff.toDateString()} (Exactly 4 Months)`);
 
   const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&publishedAfter=${cutoff.toISOString()}&relevanceLanguage=en&regionCode=IN&key=${YOUTUBE_API_KEY}`;
 
