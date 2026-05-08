@@ -42,31 +42,49 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
   }
 }
 
-// Helper: Ask Gemini a quick question (plain text response)
-async function askGemini(prompt: string): Promise<string> {
-  const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const res = await model.generateContent(prompt);
-  const response = await res.response;
-  return response.text() || '';
+// Helper: Ask Gemini with automatic fallback and retry logic
+async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
+  const models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro"];
+  let lastError: any = null;
+
+  for (const modelName of models) {
+    let retries = 2;
+    while (retries > 0) {
+      try {
+        const model = ai.getGenerativeModel({ 
+          model: modelName,
+          generationConfig: useJSON ? { responseMimeType: "application/json" } : undefined
+        });
+        
+        const res = await model.generateContent(prompt);
+        const response = await res.response;
+        const text = response.text();
+        
+        if (useJSON) {
+          const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+          return JSON.parse(cleanedText);
+        }
+        return text;
+      } catch (e: any) {
+        lastError = e;
+        console.warn(`Model ${modelName} failed (Retries left: ${retries-1}). Error:`, e.message);
+        if (e.message?.includes('429')) { // Rate limit - wait longer
+           await new Promise(r => setTimeout(r, 3000));
+        } else {
+           await new Promise(r => setTimeout(r, 1000));
+        }
+        retries--;
+      }
+    }
+  }
+  
+  console.error("ALL MODELS FAILED. Final error:", lastError);
+  throw lastError || new Error("AI Brain Overloaded");
 }
 
-// Helper: Ask Gemini for JSON response
+// Helper: Ask Gemini for JSON response (now using the unified helper)
 async function askGeminiJSON(prompt: string): Promise<any> {
-  const model = ai.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
-    generationConfig: { responseMimeType: "application/json" }
-  });
-  const res = await model.generateContent(prompt);
-  const response = await res.response;
-  const text = response.text() || "{}";
-  
-  try {
-    const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanedText);
-  } catch (e) {
-    console.error("JSON Parsing Error. Raw text:", text);
-    throw new Error("Invalid AI Response Format");
-  }
+  return await askGemini(prompt, true);
 }
 
 // Allow up to 300 seconds for the full research pipeline (Railway/Docker)
