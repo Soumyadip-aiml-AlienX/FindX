@@ -44,7 +44,7 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 
 // Helper: Ask Gemini with automatic fallback and retry logic (DIRECT FETCH VERSION)
 async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
-  const models = ["gemini-1.5-flash", "gemini-1.5-pro"];
+  const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
   let lastError: any = null;
 
   console.log("DEBUG: askGemini triggered (DIRECT FETCH MODE).");
