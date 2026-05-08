@@ -74,10 +74,11 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 // Helper: Ask the AI Brain (Groq Primary, Gemini Fallback)
 async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> {
   console.log(`DEBUG: Brain Active. Keys -> Groq: ${!!GROQ_API_KEY}, Gemini: ${!!GEMINI_API_KEY}`);
+  
   // --- METHOD 1: GROQ (Primary) ---
   if (GROQ_API_KEY) {
-    // Mixtral and Gemma are the most stable "long-term" models on Groq
-    const groqModels = ["mixtral-8x7b-32768", "llama-3.3-70b-versatile", "gemma2-9b-it"];
+    // llama-3.1-8b-instant has the highest free-tier limits on Groq
+    const groqModels = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"];
     
     for (const model of groqModels) {
       try {
@@ -108,7 +109,7 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
           }
           return text;
         } else {
-          console.error(`DEBUG: Groq ${model} API Error:`, data.error?.message || data.error || "Unknown Error");
+          console.error(`DEBUG: Groq ${model} API Error:`, data.error?.message || data.error || "Quota/Model Error");
         }
       } catch (e: any) {
         console.warn(`DEBUG: Groq ${model} exception:`, e.message);
@@ -116,17 +117,16 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
     }
   }
 
-  console.warn("All Groq models failed. Falling back to Gemini...");
+  console.warn("Groq failed. Falling back to Gemini...");
 
   // --- METHOD 2: GEMINI (Fallback) ---
-  const geminiModels = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest"];
+  // Use v1beta with the models/ prefix for maximum compatibility
+  const geminiModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
   for (const modelName of geminiModels) {
     try {
       console.log(`DEBUG: Attempting Gemini (${modelName})...`);
-      // Pacing for Gemini
       await new Promise(r => setTimeout(r, 6000));
-      // Using v1 stable
-      const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,7 +151,7 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
     }
   }
 
-  throw new Error("CRITICAL: All AI Brains failed. Please check your GROQ and GEMINI API keys in Railway.");
+  throw new Error("CRITICAL: All AI Brains failed. Please check your GROQ and GEMINI API keys.");
 }
 
 async function askGemini(prompt: string): Promise<any> { return askBrain(prompt); }
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
 
       console.log(`Watching video: ${video.title}`);
       // Increased charLimit to 12000 for "careful watching"
-      const transcript = await getTranscript(video.id, 12000);
+      const transcript = await getTranscript(video.id, 6000);
 
       if (!transcript) {
         console.warn(`Skipping ${video.title} - No transcript available to watch.`);
@@ -249,7 +249,7 @@ Return ONLY the 3 device names as a comma-separated list.
       console.log(`Searching for deep reviews of: ${device}`);
       const reviewVideos = await searchYouTube(`${device} India review full test`, 3, 4);
       for (const rv of reviewVideos) {
-        const t = await getTranscript(rv.id, 12000); // Careful watching
+        const t = await getTranscript(rv.id, 6000); // Careful watching
         if (!t) continue;
         const p = `Watch this review carefully: "${rv.title}"\nTranscript: ${t}\nExtract deep benchmark scores, battery life, and heating issues for "${device}".`;
         try {
