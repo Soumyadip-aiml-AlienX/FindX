@@ -211,12 +211,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "API Keys Missing" }, { status: 500 });
     }
 
-    console.log("--- STAGE 1: SEARCHING (TRUSTED CHANNELS PRIORITIZED) ---");
+    console.log("--- STAGE 1: SEARCHING (MULTI-QUERY STRATEGY) ---");
+    const excludeQuery = excludedBrands && excludedBrands.length > 0 
+      ? excludedBrands.map((b: string) => ` -"${b}"`).join('') 
+      : '';
     
-    // 1. Broad Search first (Relaxed query to find more results)
-    const broadQuery = `best ${category} under ${budget} India comparison reviews${excludeQuery}`;
-    const allRecentVideos = await searchYouTube(broadQuery, 50, 4);
+    // 1. Multi-Search Strategy (Running 4 distinct queries to catch everything)
+    const queries = [
+      `best ${category} under ${budget} India comparison${excludeQuery}`,
+      `top 5 ${category} under ${budget} India${excludeQuery}`,
+      `top 10 ${category} under ${budget} India${excludeQuery}`,
+      `best ${category} for ${budget} reviews${excludeQuery}`
+    ];
+
+    const allSearches = await Promise.all(queries.map(q => searchYouTube(q, 15, 4)));
+    const allRecentVideos = Array.from(new Map(allSearches.flat().map(v => [v.id, v])).values());
     
+    console.log(`Deduplicated Pool: ${allRecentVideos.length} videos.`);
+
     // 2. Filter for Trusted Channels
     const trustedList = category === 'mobile' ? TRUSTED_CHANNELS.mobile : TRUSTED_CHANNELS.laptop;
     let allVideos = allRecentVideos.filter(v => 
@@ -225,13 +237,13 @@ export async function POST(request: Request) {
 
     // 3. Fallback: If trusted list is too small, add the top broad results
     if (allVideos.length < 5) {
-      console.log("Trusted channel list too small, adding top broad results as fallback...");
-      const fallbackVideos = allRecentVideos.filter(v => !allVideos.find(av => av.id === v.id)).slice(0, 10);
+      console.log("Trusted channel list too small, adding top results as fallback...");
+      const fallbackVideos = allRecentVideos.filter(v => !allVideos.find(av => av.id === v.id)).slice(0, 15);
       allVideos = [...allVideos, ...fallbackVideos];
     }
     
     allVideos = allVideos.slice(0, 25);
-    console.log(`Found ${allVideos.length} relevant videos. Watching carefully...`);
+    console.log(`Found ${allVideos.length} high-quality videos. Watching carefully...`);
 
     const summaryResults: string[] = [];
     let videosWatched = 0;
