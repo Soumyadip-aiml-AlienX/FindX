@@ -70,8 +70,8 @@ async function askGeminiJSON(prompt: string): Promise<any> {
   }
 }
 
-// Allow up to 60 seconds for the full research pipeline (Vercel Hobby max)
-export const maxDuration = 60;
+// Allow up to 300 seconds for the full research pipeline (Railway/Docker)
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
@@ -90,37 +90,47 @@ export async function POST(request: Request) {
     const mainQuery = `best ${category} under ${budget} India 2024 full reviews comparison benchmark`;
     const allVideos = await searchYouTube(mainQuery, 25, 4);
 
-    // AI "watches" and summarizes ALL 25 videos in parallel
-    const summaryResults = await Promise.all(
-      allVideos.map(async (video: any) => {
-        const text = await getTranscript(video.id, 15000); // Get a good chunk of transcript
-        if (!text) return null;
+    // AI "watches" and summarizes ALL 25 videos
+    // We process in batches of 5 to stay within Gemini's Free RPM limits (15 RPM)
+    const summaryResults: (string | null)[] = [];
+    for (let i = 0; i < allVideos.length; i += 5) {
+      const batch = allVideos.slice(i, i + 5);
+      const batchResults = await Promise.all(
+        batch.map(async (video: any) => {
+          const text = await getTranscript(video.id, 12000);
+          if (!text) return null;
 
-        const summaryPrompt = `
-You just watched this YouTube video: "${video.title}"
+          const summaryPrompt = `
+You just watched: "${video.title}"
 Date: ${video.publishedAt}
 Transcript: ${text}
 
 EXTRACT ONLY:
 1. Device models mentioned.
-2. Key specs (Processor, RAM, Camera, Battery) for each.
-3. Reviewer's main pros/cons for each.
-4. Final ranking if provided.
+2. Key specs (Processor, RAM, Camera, Battery).
+3. Reviewer's main pros/cons.
+4. Final ranking.
+          `;
+          
+          try {
+            // Add a tiny random jitter to prevent perfect sync hits
+            await new Promise(r => setTimeout(r, Math.random() * 1000));
+            const summary = await askGemini(summaryPrompt);
+            return `[Source: ${video.title}]\n${summary}`;
+          } catch (e) {
+            console.error(`Summary failed for ${video.id}:`, e);
+            return null;
+          }
+        })
+      );
+      summaryResults.push(...batchResults);
+      // Wait a few seconds between batches to respect the 15 RPM limit
+      if (i + 5 < allVideos.length) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
 
-Be technical and concise. No fluff.
-        `;
-        
-        try {
-          const summary = await askGemini(summaryPrompt);
-          return `[Source: ${video.title} | Date: ${video.publishedAt}]\n${summary}`;
-        } catch (e) {
-          console.error(`Summary failed for ${video.id}`);
-          return null;
-        }
-      })
-    );
-
-    // Build a refined knowledge base from all 25 summaries
+    // Build a refined knowledge base from all summaries
     const RefinedKnowledge = summaryResults.filter(s => s !== null).join('\n\n---\n\n');
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -128,16 +138,16 @@ Be technical and concise. No fluff.
     // Compare all refined data and pick the top 3 candidates
     // ─────────────────────────────────────────────────────────────────────────
     const extractPrompt = `
-You are a WORLD-CLASS tech researcher. You have just analyzed the key technical data from 25+ YouTube review videos about ${category} under ₹${budget}.
+You are a WORLD-CLASS tech researcher. You have just analyzed technical data from ${summaryResults.filter(s => s !== null).length} YouTube videos about ${category} under ₹${budget}.
 
-Here is the refined research data:
-${RefinedKnowledge || 'No transcripts were available. Use your expert knowledge instead.'}
+Refined research:
+${RefinedKnowledge || 'No transcripts were available. Use expert knowledge.'}
 
 TASK:
-1. Compare every single device mentioned based on the refined research.
-2. Prioritize the ABSOLUTE LATEST releases (last 1-2 months).
-3. Select the top 3 absolute best candidates that match: ${specs}.
-4. Must be from these brands: ${brands}.
+1. Compare devices based on research.
+2. Prioritize LATEST releases.
+3. Select TOP 3 candidates matching: ${specs}.
+4. Must be from: ${brands}.
 
 Return ONLY the 3 device names as a comma-separated list.
     `;
