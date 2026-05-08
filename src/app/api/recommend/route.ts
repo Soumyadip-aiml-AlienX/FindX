@@ -49,13 +49,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, recommendation: { devices: [] } }); 
     }
 
-    // STAGE 1 & 2: Market Scan (Top 15 videos, prioritizing recency)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    // STAGE 1 & 2: Market Scan (Top 15 videos, prioritizing recency - Last 4 Months)
+    const fourMonthsAgo = new Date();
+    fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4);
+    const publishedAfter = fourMonthsAgo.toISOString();
     
     const marketQuery = `best ${category} under ${budget} india reviews comparison 2024`;
-    // Using order=relevance but filtering for last 6 months to ensure quality + recency
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(marketQuery)}&type=video&maxResults=15&publishedAfter=${sixMonthsAgo.toISOString()}&relevanceLanguage=en&regionCode=IN&key=${YOUTUBE_API_KEY}`;
+    // Using order=relevance but filtering for last 4 months for ultra-recency
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(marketQuery)}&type=video&maxResults=15&publishedAfter=${publishedAfter}&relevanceLanguage=en&regionCode=IN&key=${YOUTUBE_API_KEY}`;
     
     const marketRes = await fetch(searchUrl);
     const marketData = await marketRes.json();
@@ -63,11 +64,11 @@ export async function POST(request: Request) {
     const marketContext = (marketData.items || []).map((v: any) => `[Date: ${v.snippet.publishedAt}] ${v.snippet.title}`).join('\n');
 
     const filterPrompt = `
-      List of recent YouTube videos:
+      List of ultra-recent YouTube videos (Last 4 Months):
       ${marketContext}
 
       Identify the top 3 ${category} models under ₹${budget} for ${requirements.join(', ')}. 
-      CRITICAL: Give much more weight and importance to the LATEST videos (the ones with the most recent dates). 
+      CRITICAL: Focus on the absolute LATEST videos. 
       Preferred brands: ${finalCompanies}. 
       Return only device names as a comma-separated list.
     `;

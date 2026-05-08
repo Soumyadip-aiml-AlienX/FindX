@@ -482,7 +482,7 @@ export default function Home() {
                 <div className={styles.methodologyStep}>
                   <div className={styles.stepNum}>01</div>
                   <div className={styles.stepText}>
-                    <strong>Market Scan:</strong> Scanned 20 top reviews from the last 6 months to identify current market leaders.
+                    <strong>Market Scan:</strong> Scanned 20 top reviews from the last 4 months to identify current market leaders.
                   </div>
                 </div>
                 <div className={styles.methodologyStep}>
