@@ -211,18 +211,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "API Keys Missing" }, { status: 500 });
     }
 
-    console.log("--- STAGE 1: SEARCHING (TRUSTED CHANNELS ONLY) ---");
+    console.log("--- STAGE 1: SEARCHING (TRUSTED CHANNELS PRIORITIZED) ---");
+    const excludeQuery = excludedBrands && excludedBrands.length > 0 
+      ? excludedBrands.map((b: string) => ` -"${b}"`).join('') 
+      : '';
     
-    // We will do multiple targeted searches to ensure we get videos from the trusted list
-    const targetChannels = (category === 'mobile' ? TRUSTED_CHANNELS.mobile : TRUSTED_CHANNELS.laptop).slice(0, 8);
-    const searchTasks = targetChannels.map(channel => 
-      searchYouTube(`${category} under ${budget} ${channel} 2026 comparison ${excludeQuery}`, 3, 4)
+    // 1. Broad Search first
+    const broadQuery = `best ${category} under ${budget} India 2026 comparison${excludeQuery}`;
+    const allRecentVideos = await searchYouTube(broadQuery, 40, 4);
+    
+    // 2. Filter for Trusted Channels
+    const trustedList = category === 'mobile' ? TRUSTED_CHANNELS.mobile : TRUSTED_CHANNELS.laptop;
+    let allVideos = allRecentVideos.filter(v => 
+      trustedList.some(tc => v.channelTitle.toLowerCase().includes(tc.toLowerCase()))
     );
+
+    // 3. Fallback: If trusted list is too small, add the top broad results
+    if (allVideos.length < 5) {
+      console.log("Trusted channel list too small, adding top broad results as fallback...");
+      const fallbackVideos = allRecentVideos.filter(v => !allVideos.find(av => av.id === v.id)).slice(0, 10);
+      allVideos = [...allVideos, ...fallbackVideos];
+    }
     
-    const searchResults = await Promise.all(searchTasks);
-    const allVideos = searchResults.flat().slice(0, 25);
-    
-    console.log(`Found ${allVideos.length} videos from trusted channels. Watching carefully...`);
+    allVideos = allVideos.slice(0, 25);
+    console.log(`Found ${allVideos.length} relevant videos. Watching carefully...`);
 
     const summaryResults: string[] = [];
     let videosWatched = 0;
