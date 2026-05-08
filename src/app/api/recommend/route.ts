@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { YoutubeTranscript } from 'youtube-transcript';
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const ai = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Helper: Search YouTube with custom date filter
 async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: number = 4) {
