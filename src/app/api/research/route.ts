@@ -9,6 +9,13 @@ const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const YOUTUBE_COOKIE = process.env.YOUTUBE_COOKIE;
 
+// API Key Rotator (Supports multiple keys separated by comma)
+const YOUTUBE_KEYS = (process.env.YOUTUBE_API_KEY || '').split(',').map(k => k.trim());
+let currentKeyIndex = 0;
+
+const getYouTubeKey = () => YOUTUBE_KEYS[currentKeyIndex % YOUTUBE_KEYS.length];
+const rotateKey = () => { currentKeyIndex++; console.log("DEBUG: Rotating YouTube API Key..."); };
+
 // Human-like User Agents
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -43,38 +50,44 @@ const TRUSTED_CHANNELS = {
   laptop: ["Techum", "Venom's Tech", "TechWiser", "Tech Terminus", "Trakin Tech", "Techy Imran", "WiserGadget", "REVIEW SHEVIEW", "Tech Maan", "TechZonical", "Tech Burner", "Trakin TechEnglish", "Technical Guruji"]
 };
 
-// Helper: Search YouTube with custom date filter
+// Helper: Search YouTube with high-stability fallback
 async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: number = 4) {
-  if (!YOUTUBE_API_KEY) return [];
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - monthsAgo);
   
-  console.log(`DEBUG: Starting search for [${query}]...`);
-  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&publishedAfter=${cutoff.toISOString()}&key=${YOUTUBE_API_KEY}`;
+  console.log(`DEBUG: Searching for [${query}]...`);
+
+  // 1. Try yt-search (High stability, No API Key)
+  try {
+    const yts = await import('yt-search');
+    const r = await yts.search(query);
+    const videos = r.videos.slice(0, maxResults).map(v => ({
+      id: v.videoId,
+      title: v.title,
+      channelTitle: v.author.name,
+      publishedAt: v.timestamp || new Date().toISOString()
+    }));
+    if (videos.length > 0) return videos;
+  } catch (e) {
+    console.warn("yt-search failed, falling back to API...");
+  }
+
+  // 2. Fallback to YouTube API (With Key Rotation)
+  const key = getYouTubeKey();
+  if (!key) return [];
+  
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&publishedAfter=${cutoff.toISOString()}&key=${key}`;
 
   try {
     const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
     
-    if (data.error) {
-      console.warn(`YOUTUBE API QUOTA HIT. Attempting Stealth Scraper...`);
-      try {
-        const play = await import('play-dl');
-        const results = await play.search(query, { limit: maxResults, source: { youtube: 'video' } });
-        return results.map(v => ({
-          id: v.id || '',
-          title: v.title || 'Untitled',
-          channelTitle: v.channel?.name || 'Unknown Channel',
-          publishedAt: v.uploadedAt || new Date().toISOString(),
-        })).filter(v => v.id.length > 0);
-      } catch (scrapError) {
-        console.error("STEALTH SCRAPER FAILED:", scrapError.message);
-        return [];
-      }
+    if (data.error && data.error.reason === 'quotaExceeded') {
+      rotateKey();
+      return []; // Next call will use the new key
     }
 
-    if (data.items && data.items.length > 0) {
-      console.log(`DEBUG: Found ${data.items.length} videos for [${query}]`);
+    if (data.items) {
       return data.items.map((item: any) => ({
         id: item.id.videoId,
         title: item.snippet.title,
@@ -82,7 +95,6 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
         publishedAt: item.snippet.publishedAt,
       }));
     }
-    console.warn(`DEBUG: No videos found for [${query}]`);
   } catch (e) {
     console.error("YouTube search error:", e);
   }
