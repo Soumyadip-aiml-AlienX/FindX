@@ -49,6 +49,14 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
 
   console.log("DEBUG: askGemini triggered.");
 
+  try {
+    const listResult = await genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Dummy to check SDK
+    const modelList = await genAI.listModels();
+    modelList.models.forEach(m => console.log(`DEBUG: Available Model: ${m.name}`));
+  } catch (e: any) {
+    console.error("DEBUG: Model Sniffer failed:", e.message || e);
+  }
+
   for (const modelName of models) {
     let retries = 2;
     while (retries > 0) {
