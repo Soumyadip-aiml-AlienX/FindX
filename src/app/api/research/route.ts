@@ -124,40 +124,38 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
 }
 
 // Helper: Get transcript text (with size limit)
-async function getTranscript(videoId: string, charLimit: number = 8000) {
-  // METHOD 1: Try native transcript first (Fast & Free)
+async function getTranscript(videoId: string, charLimit: number = 6000) {
   try {
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
-    return transcript.map(t => t.text).join(' ').substring(0, charLimit);
-  } catch (e) {
-    console.warn(`Native transcript failed for ${videoId}, attempting Audio-Listening (AssemblyAI)...`);
-
-    // METHOD 2: Audio-Listening Fallback
-    if (!ASSEMBLYAI_API_KEY) {
-      console.error("Missing ASSEMBLYAI_API_KEY! Cannot listen to audio.");
-      return null;
-    }
-
+    const play = await import('play-dl');
+    
+    // Attempt 1: Native Transcript
     try {
-      // Get direct audio stream URL using play-dl
-      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      const streamInfo = await play.video_info(videoUrl);
-      const audioUrl = streamInfo.format[streamInfo.format.length - 1].url;
-
-      if (!audioUrl) throw new Error("Could not extract audio URL");
-
-      const transcript = await aai.transcripts.transcribe({
-        audio: audioUrl,
-        language_detection: true
-      });
-
-      console.log(`Audio-Listening success for ${videoId}`);
-      return transcript.text?.substring(0, charLimit) || null;
-    } catch (err: any) {
-      console.error(`Audio-Listening CRASHED for ${videoId}:`, err.message || err);
-      return null;
+      const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+      if (transcript && transcript.length > 0) {
+        return transcript.map(t => t.text).join(' ').substring(0, charLimit);
+      }
+    } catch (e) {
+      console.warn(`Native transcript failed for ${videoId}.`);
     }
+
+    // Attempt 2: Audio Extraction (Using Mobile Identity)
+    if (ASSEMBLYAI_API_KEY) {
+      console.log(`DEBUG: Attempting mobile-spoof fetch for ${videoId}...`);
+      const info = await play.video_info(`https://www.youtube.com/watch?v=${videoId}`);
+      const stream = await play.stream_from_info(info, { quality: 0 });
+      
+      if (stream && stream.url) {
+        const transcript = await aai.transcripts.transcribe({
+          audio: stream.url,
+          speaker_labels: false
+        });
+        return transcript.text?.substring(0, charLimit) || "";
+      }
+    }
+  } catch (e) {
+    console.error(`SCRAPER BLOCKED for ${videoId}:`, e.message);
   }
+  return "";
 }
 
 // Helper: Ask the AI Brain (Groq Primary, Gemini Fallback)
