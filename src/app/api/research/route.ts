@@ -37,7 +37,7 @@ async function initYouTube() {
       }
     });
     console.log("DEBUG: YouTube Auth Session Active.");
-  } catch (e) {
+  } catch (e: any) {
     console.error("YouTube Auth Failed:", e.message);
   }
 }
