@@ -76,8 +76,8 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
   console.log(`DEBUG: Brain Active. Keys -> Groq: ${!!GROQ_API_KEY}, Gemini: ${!!GEMINI_API_KEY}`);
   // --- METHOD 1: GROQ (Primary) ---
   if (GROQ_API_KEY) {
-    // Try both 70B and 8B models for maximum reliability
-    const groqModels = ["llama-3.1-70b-versatile", "llama3-8b-8192"];
+    // Try the latest 2026 stable Groq models
+    const groqModels = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-8b-8192"];
     
     for (const model of groqModels) {
       try {
