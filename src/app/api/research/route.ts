@@ -303,29 +303,17 @@ export async function POST(request: Request) {
       allVideos = [...allVideos, ...fallbackVideos];
     }
     
-    allVideos = allVideos.slice(0, 25);
-    console.log(`Found ${allVideos.length} high-quality videos. Watching carefully...`);
-
+    // 3. Sequential Watching (Prevents 429 Rate Limits)
+    console.log(`Found ${allVideos.length} high-quality videos. Watching the Top 5 carefully...`);
+    const finalWatchPool = allVideos.slice(0, 5); // Limit to top 5 for stability
     const summaryResults: string[] = [];
-    let videosWatched = 0;
 
-    // SEQUENTIAL PROCESSING
-    for (const video of allVideos) {
-      if (videosWatched >= 6) break; // Watch 6 videos extremely carefully
-
-      console.log(`Watching video: ${video.title}`);
-      // Increased charLimit to 12000 for "careful watching"
-      const transcript = await getTranscript(video.id, 6000);
-
-      if (!transcript) {
-        console.warn(`Skipping ${video.title} - No transcript available to watch.`);
-        continue;
-      }
-
-      videosWatched++;
-      console.log(`Analyzing transcript for: ${video.title} (${videosWatched}/6)`);
-
-      const summaryPrompt = `
+    for (const video of finalWatchPool) {
+      try {
+        console.log(`Watching video: ${video.title}`);
+        const transcript = await getTranscript(video.id, 6000);
+        if (transcript && transcript.length > 500) {
+          const summaryPrompt = `
 Carefully analyze this video transcript: "${video.title}"
 Transcript: ${transcript}
 
