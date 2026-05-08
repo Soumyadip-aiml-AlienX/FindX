@@ -13,9 +13,15 @@ const aai = new AssemblyAI({ apiKey: ASSEMBLYAI_API_KEY });
 
 // Initialize play-dl with cookies if available
 if (YOUTUBE_COOKIE) {
+  // SANITIZE: Remove "cookie:" prefix, newlines, and extra spaces
+  const cleanCookie = YOUTUBE_COOKIE
+    .replace(/^cookie:\s*/i, '')
+    .replace(/[\r\n]+/g, '')
+    .trim();
+
   play.setToken({
     youtube: {
-      cookie: YOUTUBE_COOKIE
+      cookie: cleanCookie
     }
   }).catch(e => console.error("FAILED TO SET YOUTUBE COOKIE:", e.message));
 }
