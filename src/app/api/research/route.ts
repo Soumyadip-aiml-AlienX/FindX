@@ -212,9 +212,6 @@ export async function POST(request: Request) {
     }
 
     console.log("--- STAGE 1: SEARCHING (TRUSTED CHANNELS PRIORITIZED) ---");
-    const excludeQuery = excludedBrands && excludedBrands.length > 0 
-      ? excludedBrands.map((b: string) => ` -"${b}"`).join('') 
-      : '';
     
     // 1. Broad Search first
     const broadQuery = `best ${category} under ${budget} India 2026 comparison${excludeQuery}`;
