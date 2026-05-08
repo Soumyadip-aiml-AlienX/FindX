@@ -96,11 +96,13 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
   
   // --- METHOD 1: GROQ (Primary) ---
   if (GROQ_API_KEY) {
-    const groqModels = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768"];
+    // Standard stable Groq models
+    const groqModels = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"];
     
     for (const model of groqModels) {
       let attempts = 0;
-      while (attempts < 2) {
+      // Increased patience: 5 attempts for Free Tier stability
+      while (attempts < 5) {
         try {
           console.log(`DEBUG: Attempting Groq (${model})...`);
           const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -130,10 +132,10 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
             return text;
           } 
           
-          // AUTO-RETRY ON RATE LIMIT
-          if (data.error?.code === "rate_limit_exceeded") {
-            console.warn(`DEBUG: Groq Rate Limit. Waiting 8s and retrying...`);
-            await new Promise(r => setTimeout(r, 8000));
+          // AUTO-RETRY ON RATE LIMIT (Patience is key for free tier)
+          if (res.status === 429 || data.error?.code === "rate_limit_exceeded") {
+            console.warn(`DEBUG: Groq Rate Limit. Waiting 12s and retrying (Attempt ${attempts + 1}/5)...`);
+            await new Promise(r => setTimeout(r, 12000));
             attempts++;
             continue;
           }
@@ -148,16 +150,17 @@ async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> 
     }
   }
 
-  console.warn("Groq failed. Falling back to Gemini...");
+  console.warn("Groq failed all attempts. Falling back to Gemini...");
 
   // --- METHOD 2: GEMINI (Fallback) ---
   const geminiModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
   for (const modelName of geminiModels) {
     try {
       console.log(`DEBUG: Attempting Gemini (${modelName})...`);
-      await new Promise(r => setTimeout(r, 6000));
-      // Using v1 stable for models that don't like v1beta
-      const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+      // Pacing for Gemini Free Tier
+      await new Promise(r => setTimeout(r, 8000));
+      // Using v1beta with full model path
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
