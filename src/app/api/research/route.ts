@@ -44,7 +44,7 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 
 // Helper: Ask Gemini with automatic fallback and retry logic
 async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
-  const models = ["gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-1.5-flash"];
+  const models = ["models/gemini-1.5-flash", "models/gemini-1.5-pro", "gemini-1.5-flash"];
   let lastError: any = null;
 
   console.log("DEBUG: askGemini triggered.");
