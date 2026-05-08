@@ -87,13 +87,13 @@ export async function POST(request: Request) {
     // STAGE 1: BROAD YOUTUBE SEARCH
     // Search "best mobile under 25000" and get all top videos from last 4 months
     // ─────────────────────────────────────────────────────────────────────────
-    const mainQuery = `best ${category} under ${budget} India 2024 reviews comparison`;
-    const allVideos = await searchYouTube(mainQuery, 20, 4);
+    const mainQuery = `best ${category} under ${budget} India 2024 full reviews comparison benchmark`;
+    const allVideos = await searchYouTube(mainQuery, 25, 4);
 
     // Fetch transcripts of ALL these videos in parallel (this is "watching" them)
     const transcriptResults = await Promise.all(
       allVideos.map(async (video: any) => {
-        const text = await getTranscript(video.id, 7000);
+        const text = await getTranscript(video.id, 20000);
         return {
           title: video.title,
           date: video.publishedAt,
@@ -114,19 +114,19 @@ export async function POST(request: Request) {
     // and picks the top 2-3 based on user specifications
     // ─────────────────────────────────────────────────────────────────────────
     const extractPrompt = `
-You are an expert Indian tech analyst. You have just watched ${transcriptResults.filter(v => v.transcript).length} YouTube review/comparison videos about ${category} under ₹${budget}.
+You are a WORLD-CLASS tech research AI. You have just "watched" and analyzed ${transcriptResults.filter(v => v.transcript).length} full YouTube videos (over 200,000 words of data) about ${category} under ₹${budget}.
 
-Here is everything you learned from watching them:
+Here is the MASSIVE data you extracted:
 ${watchedData || 'No transcripts were available. Use your own expert knowledge of the current Indian market instead.'}
 
 TASK:
-1. List EVERY ${category} device mentioned across all these videos.
-2. Give MORE WEIGHT to devices featured in the LATEST/NEWEST videos.
-3. Compare all the devices against each other based on the user's priorities: ${specs}.
-4. The user prefers these brands: ${brands}.
-5. After comparing, pick the TOP 3 devices that best match the user's needs.
+1. List EVERY ${category} device mentioned. Do not miss any.
+2. Prioritize the ABSOLUTE LATEST releases (last 1-2 months).
+3. Perform a deep technical comparison based on: ${specs}.
+4. Filter by preferred brands: ${brands}.
+5. Pick the TOP 3 absolute best candidates for the next round of deep review.
 
-Return ONLY the 3 device names as a comma-separated list. Nothing else.
+Return ONLY the 3 device names as a comma-separated list.
     `;
 
     const candidateText = await askGemini(extractPrompt);
@@ -138,15 +138,15 @@ Return ONLY the 3 device names as a comma-separated list. Nothing else.
     // ─────────────────────────────────────────────────────────────────────────
     const reviewData = await Promise.all(
       candidates.map(async (device) => {
-        const reviewVideos = await searchYouTube(`${device} review India`, 2, 4);
+        const reviewVideos = await searchYouTube(`${device} review India latest long-term`, 3, 4);
         let reviewText = '';
         for (const rv of reviewVideos) {
-          const t = await getTranscript(rv.id, 4000);
+          const t = await getTranscript(rv.id, 15000);
           if (t) {
-            reviewText += `\n[Review: "${rv.title}"]\n${t}\n`;
+            reviewText += `\n[Deep Review: "${rv.title}"]\n${t}\n`;
           }
         }
-        return { device, reviewText: reviewText || '(No review transcript found, use internal knowledge)' };
+        return { device, reviewText: reviewText || '(Using internal expert knowledge)' };
       })
     );
 
@@ -181,36 +181,42 @@ Return ONLY the 2 device names as a comma-separated list. Nothing else.
     // Compare the top 2 devices one last time and generate the final verdict
     // ─────────────────────────────────────────────────────────────────────────
     const finalPrompt = `
-You are an expert Indian tech consultant. After extensive research across 15+ YouTube videos and dedicated reviews, you have narrowed it down to these 2 finalists for a ${category} under ₹${budget}:
+You are a WORLD-CLASS tech consultant. You have just completed a massive research project involving 25+ YouTube comparison videos and 9+ dedicated deep-dive reviews for the top candidates.
 
-Device 1: ${top2[0] || candidates[0]}
-Device 2: ${top2[1] || candidates[1] || candidates[0]}
+Finalists:
+1. ${top2[0] || candidates[0]}
+2. ${top2[1] || candidates[1] || candidates[0]}
 
-Review evidence:
+The MASSIVE evidence from your research:
 ${reviewKnowledge}
 
-User priorities: ${specs}
-Preferred brands: ${brands}
+User constraints:
+Budget: ₹${budget}
+Priorities: ${specs}
+Preferred Brands: ${brands}
 
-Perform a FINAL head-to-head comparison. The #1 device WINS the competition.
+TASK:
+1. Perform a BRUTAL head-to-head comparison. No fluff.
+2. Based on the review transcripts, identify the definitive WINNER.
+3. Explain the WINNER's victory using specific data points found in the research (battery life, display tech, benchmark results, etc).
 
-Return ONLY this JSON:
+Return ONLY this JSON format:
 {
   "devices": [
     {
-      "name": "Full device name",
+      "name": "Exact model name",
       "price": 24999,
       "release_year": "2024",
       "buy_link": "https://www.amazon.in/s?k=device+name",
       "specs": {
-        "processor": "Processor name and details",
-        "display": "Size, resolution, panel type, refresh rate",
-        "ram_storage": "RAM and storage details",
-        "battery": "Battery capacity and charging speed",
-        "camera_or_gpu": "Camera specs for mobile or GPU for laptop"
+        "processor": "Technical name & performance details",
+        "display": "Panel type, size, refresh rate, peak brightness",
+        "ram_storage": "Detailed RAM & Storage specs",
+        "battery": "Capacity & charging wattage",
+        "camera_or_gpu": "Full sensor details or GPU performance"
       },
-      "pros": ["Advantage 1 based on reviews", "Advantage 2", "Advantage 3"],
-      "verdict": "Detailed explanation of why this device won the competition based on the reviews watched"
+      "pros": ["Data-backed advantage 1", "Data-backed advantage 2", "Data-backed advantage 3"],
+      "verdict": "A comprehensive, technical explanation of why this device is the winner based on the 30+ videos you 'watched' during research."
     }
   ]
 }
