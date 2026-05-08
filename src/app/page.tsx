@@ -170,11 +170,11 @@ export default function Home() {
   };
 
   const loadingStepsText = [
-    "Searching YouTube & watching all recent review videos...",
-    "Extracting every device mentioned & comparing them...",
-    "Searching for dedicated reviews of top 3 candidates...",
-    "Picking top 2 finalists from reviews...",
-    "Final head-to-head battle to crown the winner..."
+    "Searching YouTube (Ultra V4)...",
+    "Extracting technical data & comparing devices...",
+    "Performing deep-dive research on finalists...",
+    "Analyzing benchmark results & pros/cons...",
+    "Final verdict: Crowning the winner..."
   ];
 
   return (
