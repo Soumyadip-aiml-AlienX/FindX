@@ -144,47 +144,64 @@ export async function POST(request: Request) {
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 1: SEARCHING ---");
     const currentYear = new Date().getFullYear();
-    const mainQuery = `best ${category} under ${budget} India ${currentYear} full reviews comparison benchmark`;
-    const allVideos = await searchYouTube(mainQuery, 10, 6); // Reduced to 10 for speed and reliability
-    console.log(`Found ${allVideos.length} videos.`);
+    // More aggressive query for fresh 2026 data
+    const mainQuery = `latest ${category} reviews India ${currentYear} comparison benchmark "pros and cons"`;
+    const allVideos = await searchYouTube(mainQuery, 25, 8); // Increased to 25 to bypass disabled transcripts
+    console.log(`Found ${allVideos.length} potential videos. Analyzing for transcripts...`);
 
     const summaryResults: string[] = [];
+    let videosWithData = 0;
     
-    // SEQUENTIAL PROCESSING to strictly respect rate limits
+    // SEQUENTIAL PROCESSING
     for (const video of allVideos) {
-      console.log(`Analyzing video: ${video.title}`);
-      const text = await getTranscript(video.id, 8000);
-      if (!text) continue;
+      if (videosWithData >= 8) break; // Limit to 8 high-quality sources to keep speed reasonable
 
-      const summaryPrompt = `Extract technical specs and pros/cons for devices in this video: "${video.title}"\nTranscript: ${text}\nFocus on ${category} under ₹${budget}.`;
+      console.log(`Checking transcript for: ${video.title}`);
+      const text = await getTranscript(video.id, 9000);
+      
+      if (!text) {
+        console.warn(`No transcript for ${video.id}, skipping.`);
+        continue;
+      }
+
+      videosWithData++;
+      console.log(`Processing AI Summary for: ${video.title} (${videosWithData}/8)`);
+      
+      const summaryPrompt = `
+Extract technical specs, Indian pricing (₹), and performance data for ${category} in this video: "${video.title}"
+Transcript: ${text}
+CRITICAL: Only focus on devices released in ${currentYear} or late ${currentYear-1}. Skip older models.
+      `;
       
       try {
         const summary = await askGemini(summaryPrompt);
         summaryResults.push(`[Source: ${video.title}]\n${summary}`);
       } catch (e) {
-        console.warn(`Skipping video ${video.title} due to AI error.`);
+        console.warn(`AI Error summarizing ${video.title}`);
       }
     }
 
     const RefinedKnowledge = summaryResults.join('\n\n---\n\n');
-    console.log(`Refined Knowledge gathered from ${summaryResults.length} videos.`);
+    console.log(`Refined Knowledge gathered from ${summaryResults.length} live sources.`);
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 2: TECHNICAL SHORTLIST
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 2: SHORTLISTING ---");
     const extractPrompt = `
-You are a WORLD-CLASS tech researcher. Based on the following data, select the top 3 ${category} for ₹${budget} (Specs: ${specs}, Brands: ${brands}).
-Data: ${RefinedKnowledge || 'No transcripts available. Use your expert knowledge of the Indian market in ' + currentYear + ' instead.'}
+You are an expert Indian tech journalist in May ${currentYear}.
+Research Data: ${RefinedKnowledge || 'CRITICAL: No live transcripts found. You MUST use your internal knowledge of ' + currentYear + ' flagships like S26, iQOO 13, OnePlus 13, etc.'}
 
-TASK: Return ONLY the 3 device names as a comma-separated list.
+TASK: Select the top 3 ${category} for ₹${budget} (Specs: ${specs}, Brands: ${brands}).
+REQUIREMENT: The devices MUST be current-gen (2025-2026). Do NOT suggest 2023 or 2024 models.
+Return ONLY the 3 device names as a comma-separated list.
     `;
 
     const candidateText = await askGemini(extractPrompt);
     const candidates = candidateText.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 2).slice(0, 3);
     console.log("Candidates selected:", candidates);
 
-    if (candidates.length === 0) throw new Error("No candidates found in research.");
+    if (candidates.length === 0) throw new Error("No modern candidates found.");
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 3: DEEP-DIVE RESEARCH
@@ -193,17 +210,17 @@ TASK: Return ONLY the 3 device names as a comma-separated list.
     const reviewKnowledgeParts: string[] = [];
     
     for (const device of candidates) {
-      console.log(`Deep diving into: ${device}`);
-      const reviewVideos = await searchYouTube(`${device} review India latest long-term`, 2, 4);
+      console.log(`Deep diving into ${currentYear} data for: ${device}`);
+      const reviewVideos = await searchYouTube(`${device} India review ${currentYear} full test`, 3, 6);
       for (const rv of reviewVideos) {
-        const t = await getTranscript(rv.id, 8000);
+        const t = await getTranscript(rv.id, 9000);
         if (!t) continue;
-        const p = `Extract technical benchmark data and battery stats for "${device}" from this review: "${rv.title}"\nTranscript: ${t}`;
+        const p = `Extract detailed benchmark scores and real-world battery life for "${device}" from this ${currentYear} review: "${rv.title}"\nTranscript: ${t}`;
         try { 
           const s = await askGemini(p);
           reviewKnowledgeParts.push(`=== DEEP RESEARCH: ${device} ===\nSource: ${rv.title}\n${s}`);
         } catch (e) {
-          console.warn(`Skipping deep dive for ${device} on video ${rv.title}`);
+          console.warn(`Deep dive failed for ${device}`);
         }
       }
     }
@@ -215,10 +232,10 @@ TASK: Return ONLY the 3 device names as a comma-separated list.
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 4: FILTERING TOP 2 ---");
     const top2Prompt = `
-Compare these finalists:
+Compare these ${currentYear} finalists:
 ${reviewKnowledge}
 
-Pick the absolute TOP 2 for ₹${budget} based on ${specs}.
+Pick the absolute TOP 2 for ₹${budget} (Focus: ${specs}).
 Return ONLY 2 names comma-separated.
     `;
 
@@ -231,7 +248,7 @@ Return ONLY 2 names comma-separated.
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 5: FINAL VERDICT ---");
     const finalPrompt = `
-Perform a final technical comparison for:
+Create a professional recommendation for:
 1. ${top2[0] || candidates[0]}
 2. ${top2[1] || candidates[1] || candidates[0]}
 
@@ -241,20 +258,20 @@ Return JSON strictly matching this structure:
 {
   "devices": [
     {
-      "name": "Full model name",
+      "name": "Full ${currentYear} model name",
       "price": 0,
       "release_year": "${currentYear}",
       "buy_link": "https://www.amazon.in/s?k=...",
       "specs": { "processor": "...", "display": "...", "ram_storage": "...", "battery": "...", "camera_or_gpu": "..." },
       "pros": ["...", "..."],
-      "verdict": "Detailed data-backed winner explanation."
+      "verdict": "Detailed explanation why this ${currentYear} model is the winner."
     }
   ]
 }
     `;
 
     const result = await askGeminiJSON(finalPrompt);
-    console.log("SUCCESS: Research complete.");
+    console.log("SUCCESS: 2026 Research complete.");
 
     return NextResponse.json({ success: true, recommendation: result });
 
