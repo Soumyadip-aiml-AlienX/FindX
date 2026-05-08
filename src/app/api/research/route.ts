@@ -142,59 +142,63 @@ export async function POST(request: Request) {
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
     // ─────────────────────────────────────────────────────────────────────────
-    console.log("--- STAGE 1: SEARCHING ---");
+    console.log("--- STAGE 1: SEARCHING (LAST 4 MONTHS) ---");
     const currentYear = new Date().getFullYear();
-    // More aggressive query for fresh 2026 data
-    const mainQuery = `latest ${category} reviews India ${currentYear} comparison benchmark "pros and cons"`;
-    const allVideos = await searchYouTube(mainQuery, 25, 8); // Increased to 25 to bypass disabled transcripts
-    console.log(`Found ${allVideos.length} potential videos. Analyzing for transcripts...`);
+    const mainQuery = `best ${category} under ${budget} India 2026 reviews comparison`;
+    
+    // STRICT 4 MONTH FILTER as requested
+    const allVideos = await searchYouTube(mainQuery, 25, 4); 
+    console.log(`Found ${allVideos.length} recent videos. Watching carefully...`);
 
     const summaryResults: string[] = [];
-    let videosWithData = 0;
+    let videosWatched = 0;
     
     // SEQUENTIAL PROCESSING
     for (const video of allVideos) {
-      if (videosWithData >= 10) break; // Increased to 10 sources for better variety
+      if (videosWatched >= 6) break; // Watch 6 videos extremely carefully
 
-      console.log(`Analyzing: ${video.title}`);
-      const transcript = await getTranscript(video.id, 9000);
+      console.log(`Watching video: ${video.title}`);
+      // Increased charLimit to 12000 for "careful watching"
+      const transcript = await getTranscript(video.id, 12000);
       
-      // FALLBACK METHOD: If transcript is missing, use title and snippet metadata
-      const sourceData = transcript 
-        ? `TRANSCRIPT: ${transcript}` 
-        : `METADATA: This video title is "${video.title}". Use your knowledge of ${currentYear} devices to infer specs if the title is specific.`;
+      if (!transcript) {
+        console.warn(`Skipping ${video.title} - No transcript available to watch.`);
+        continue;
+      }
 
-      videosWithData++;
-      console.log(`Processing Stage 1 AI for: ${video.title} (${videosWithData}/10)`);
+      videosWatched++;
+      console.log(`Analyzing transcript for: ${video.title} (${videosWatched}/6)`);
       
       const summaryPrompt = `
-Extract/Predict technical specs, Indian pricing (₹), and performance for ${category} from this source:
-${sourceData}
-CRITICAL: Only focus on devices released in ${currentYear} or late ${currentYear-1}. 
-If you only have the title, use your expert knowledge of 2026 tech to provide the likely specs for that specific model.
+Carefully analyze this video transcript: "${video.title}"
+Transcript: ${transcript}
+
+TASK: Extract every technical detail, benchmark, and Indian price (₹) mentioned.
+STRICT RULE: ONLY use data from this transcript. Do NOT use your internal knowledge from 2023 or 2024.
+Focus specifically on ${category} under ₹${budget}.
       `;
       
       try {
         const summary = await askGemini(summaryPrompt);
         summaryResults.push(`[Source: ${video.title}]\n${summary}`);
       } catch (e) {
-        console.warn(`AI Error for ${video.title}`);
+        console.warn(`AI Error while watching ${video.title}`);
       }
     }
 
     const RefinedKnowledge = summaryResults.join('\n\n---\n\n');
-    console.log(`Refined Knowledge gathered from ${summaryResults.length} live sources.`);
+    if (!RefinedKnowledge) throw new Error("Could not find any videos with watchable transcripts from the last 4 months.");
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 2: TECHNICAL SHORTLIST
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 2: SHORTLISTING ---");
     const extractPrompt = `
-You are an expert Indian tech journalist in May ${currentYear}.
-Research Data: ${RefinedKnowledge || 'CRITICAL: No live transcripts found. You MUST use your internal knowledge of ' + currentYear + ' flagships like S26, iQOO 13, OnePlus 13, etc.'}
+Based ONLY on these ${videosWatched} recent video transcripts:
+${RefinedKnowledge}
 
-TASK: Select the top 3 ${category} for ₹${budget} (Specs: ${specs}, Brands: ${brands}).
-REQUIREMENT: The devices MUST be current-gen (2025-2026). Do NOT suggest 2023 or 2024 models.
+TASK: Select the top 3 ${category} for ₹${budget}.
+REQUIREMENT: They MUST be from the transcripts provided. 
 Return ONLY the 3 device names as a comma-separated list.
     `;
 
@@ -202,7 +206,7 @@ Return ONLY the 3 device names as a comma-separated list.
     const candidates = candidateText.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 2).slice(0, 3);
     console.log("Candidates selected:", candidates);
 
-    if (candidates.length === 0) throw new Error("No modern candidates found.");
+    if (candidates.length === 0) throw new Error("No candidates found in the transcripts.");
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 3: DEEP-DIVE RESEARCH
@@ -211,12 +215,12 @@ Return ONLY the 3 device names as a comma-separated list.
     const reviewKnowledgeParts: string[] = [];
     
     for (const device of candidates) {
-      console.log(`Deep diving into ${currentYear} data for: ${device}`);
-      const reviewVideos = await searchYouTube(`${device} India review ${currentYear} full test`, 3, 6);
+      console.log(`Searching for deep reviews of: ${device}`);
+      const reviewVideos = await searchYouTube(`${device} India review full test`, 3, 4);
       for (const rv of reviewVideos) {
-        const t = await getTranscript(rv.id, 9000);
+        const t = await getTranscript(rv.id, 12000); // Careful watching
         if (!t) continue;
-        const p = `Extract detailed benchmark scores and real-world battery life for "${device}" from this ${currentYear} review: "${rv.title}"\nTranscript: ${t}`;
+        const p = `Watch this review carefully: "${rv.title}"\nTranscript: ${t}\nExtract deep benchmark scores, battery life, and heating issues for "${device}".`;
         try { 
           const s = await askGemini(p);
           reviewKnowledgeParts.push(`=== DEEP RESEARCH: ${device} ===\nSource: ${rv.title}\n${s}`);
@@ -233,7 +237,7 @@ Return ONLY the 3 device names as a comma-separated list.
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 4: FILTERING TOP 2 ---");
     const top2Prompt = `
-Compare these ${currentYear} finalists:
+Compare these finalists based ONLY on the research transcripts:
 ${reviewKnowledge}
 
 Pick the absolute TOP 2 for ₹${budget} (Focus: ${specs}).
@@ -249,30 +253,30 @@ Return ONLY 2 names comma-separated.
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 5: FINAL VERDICT ---");
     const finalPrompt = `
-Create a professional recommendation for:
+Perform a technical comparison for:
 1. ${top2[0] || candidates[0]}
 2. ${top2[1] || candidates[1] || candidates[0]}
 
-Data Context: ${reviewKnowledge}
+Research Data: ${reviewKnowledge}
 
-Return JSON strictly matching this structure:
+Return JSON strictly:
 {
   "devices": [
     {
-      "name": "Full ${currentYear} model name",
+      "name": "Full model name",
       "price": 0,
-      "release_year": "${currentYear}",
+      "release_year": "2026",
       "buy_link": "https://www.amazon.in/s?k=...",
       "specs": { "processor": "...", "display": "...", "ram_storage": "...", "battery": "...", "camera_or_gpu": "..." },
       "pros": ["...", "..."],
-      "verdict": "Detailed explanation why this ${currentYear} model is the winner."
+      "verdict": "Detailed explanation based on the research transcripts."
     }
   ]
 }
     `;
 
     const result = await askGeminiJSON(finalPrompt);
-    console.log("SUCCESS: 2026 Research complete.");
+    console.log("SUCCESS: Research complete.");
 
     return NextResponse.json({ success: true, recommendation: result });
 
