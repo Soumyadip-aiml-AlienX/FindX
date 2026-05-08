@@ -403,12 +403,11 @@ Return ONLY 2 names comma-separated.
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 5: FINAL VERDICT ---");
     const finalPrompt = `
-Perform a technical comparison for:
-1. ${top2[0] || candidates[0]}
-2. ${top2[1] || candidates[1] || candidates[0]}
+Perform a DEEP technical comparison for these 2 devices:
+1. ${top2[0] || "Top Model"}
+2. ${top2[1] || "Top Runner-up"}
 
-    FINAL VERDICT TASK: 
-    Based on all research gathered, generate a final recommendation for exactly 2 devices (Winner and Runner-up).
+    TASK: Generate a final recommendation for exactly 2 devices.
     
     FOR EACH DEVICE, PROVIDE A-TO-Z SPECIFICATIONS:
     - Processor (Specific chipset)
@@ -419,7 +418,25 @@ Perform a technical comparison for:
     - Build (Weight, Thickness, and IP rating if mentioned)
     - PRICE (Current May 2026 Market Price in ₹)
 
-    ${useJSON ? 'Return ONLY a JSON object with this structure: { "devices": [ { "name": "", "price": "", "specs": { "processor": "", "display": "", "ram_storage": "", "battery": "", "camera_or_gpu": "" }, "pros": [], "verdict": "", "buy_link": "" } ] }' : ''}
+    Return ONLY a JSON object with this exact structure: 
+    { 
+      "devices": [ 
+        { 
+          "name": "Full Device Name", 
+          "price": "₹XX,XXX", 
+          "specs": { 
+            "processor": "Chipset info", 
+            "display": "Screen details", 
+            "ram_storage": "Memory variants", 
+            "battery": "Battery + Watts", 
+            "camera_or_gpu": "Camera details" 
+          }, 
+          "pros": ["Pro 1", "Pro 2"], 
+          "verdict": "Detailed reason why this is recommended", 
+          "buy_link": "Link or 'Search on Amazon/Flipkart'" 
+        } 
+      ] 
+    }
     `;
 
     const result = await askGeminiJSON(finalPrompt);
