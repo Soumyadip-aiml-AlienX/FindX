@@ -60,19 +60,40 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
   // 1. Try yt-search (High stability, No API Key)
   try {
     const yts = await import('yt-search');
-    const r = await yts.search(query);
-    const videos = r.videos.slice(0, maxResults).map(v => ({
+    const searchFunc = (yts as any).default || yts;
+    const r = await searchFunc(query);
+    const videos = r.videos.slice(0, maxResults).map((v: any) => ({
       id: v.videoId,
       title: v.title,
       channelTitle: v.author.name,
       publishedAt: v.timestamp || new Date().toISOString()
     }));
-    if (videos.length > 0) return videos;
+    if (videos.length > 0) {
+      console.log(`DEBUG: [yt-search] found ${videos.length} videos.`);
+      return videos;
+    }
   } catch (e) {
-    console.warn("yt-search failed, falling back to API...");
+    console.warn(`DEBUG: yt-search failed for [${query.substring(0,15)}...]:`, e.message);
   }
 
-  // 2. Fallback to YouTube API (With Key Rotation)
+  // 2. Try play-dl search (Bypass API)
+  try {
+    const play = await import('play-dl');
+    const results = await play.search(query, { limit: maxResults, source: { youtube: 'video' } });
+    if (results.length > 0) {
+      console.log(`DEBUG: [play-dl] found ${results.length} videos.`);
+      return results.map(v => ({
+        id: v.id || '',
+        title: v.title || 'Untitled',
+        channelTitle: v.channel?.name || 'Unknown Channel',
+        publishedAt: v.uploadedAt || new Date().toISOString(),
+      })).filter(v => v.id.length > 0);
+    }
+  } catch (e) {
+    console.warn("DEBUG: play-dl search fallback failed.");
+  }
+
+  // 3. Last Resort: YouTube API (With Key Rotation)
   const key = getYouTubeKey();
   if (!key) return [];
   
@@ -84,10 +105,11 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
     
     if (data.error && data.error.reason === 'quotaExceeded') {
       rotateKey();
-      return []; // Next call will use the new key
+      return [];
     }
 
     if (data.items) {
+      console.log(`DEBUG: [API] found ${data.items.length} videos.`);
       return data.items.map((item: any) => ({
         id: item.id.videoId,
         title: item.snippet.title,
