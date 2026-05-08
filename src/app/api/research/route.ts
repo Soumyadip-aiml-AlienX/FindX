@@ -278,8 +278,8 @@ Return ONLY the 3 device names as a comma-separated list.
     `;
 
     const candidateText = await askGemini(extractPrompt);
-    const candidates = candidateText.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 2).slice(0, 3);
-    console.log("Candidates selected:", candidates);
+    const candidates = candidateText.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 2).slice(0, 2); // ONLY TOP 2
+    console.log("Finalists selected:", candidates);
 
     if (candidates.length === 0) throw new Error("No candidates found in the transcripts.");
 
@@ -332,22 +332,19 @@ Perform a technical comparison for:
 1. ${top2[0] || candidates[0]}
 2. ${top2[1] || candidates[1] || candidates[0]}
 
-Research Data: ${reviewKnowledge}
+    FINAL VERDICT TASK: 
+    Based on all research gathered, generate a final recommendation for exactly 2 devices (Winner and Runner-up).
+    
+    FOR EACH DEVICE, PROVIDE A-TO-Z SPECIFICATIONS:
+    - Processor (Specific chipset)
+    - Display (Size, Panel Type, Refresh Rate, Peak Brightness)
+    - RAM & Storage (Standard variants)
+    - Battery & Charging (Capacity + Charging Speed in Watts)
+    - Cameras (Main + Selfie megapixels and key features)
+    - Build (Weight, Thickness, and IP rating if mentioned)
+    - PRICE (Current May 2026 Market Price in ₹)
 
-Return JSON strictly:
-{
-  "devices": [
-    {
-      "name": "Full model name",
-      "price": 0,
-      "release_year": "2026",
-      "buy_link": "https://www.amazon.in/s?k=...",
-      "specs": { "processor": "...", "display": "...", "ram_storage": "...", "battery": "...", "camera_or_gpu": "..." },
-      "pros": ["...", "..."],
-      "verdict": "Detailed explanation based on the research transcripts."
-    }
-  ]
-}
+    ${useJSON ? 'Return ONLY a JSON object with this structure: { "devices": [ { "name": "", "price": "", "specs": { "processor": "", "display": "", "ram_storage": "", "battery": "", "camera_or_gpu": "" }, "pros": [], "verdict": "", "buy_link": "" } ] }' : ''}
     `;
 
     const result = await askGeminiJSON(finalPrompt);
