@@ -214,9 +214,6 @@ export async function POST(request: Request) {
     }
 
     console.log("--- STAGE 1: SEARCHING (MULTI-QUERY STRATEGY) ---");
-    const excludeQuery = excludedBrands && excludedBrands.length > 0 
-      ? excludedBrands.map((b: string) => ` -"${b}"`).join('') 
-      : '';
     
     // 1. Multi-Search Strategy (Running 4 distinct queries to catch everything)
     const queries = [
