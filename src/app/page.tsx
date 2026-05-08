@@ -141,7 +141,7 @@ export default function Home() {
     }, 2000);
 
     try {
-      const response = await fetch('/api/recommend', {
+      const response = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
