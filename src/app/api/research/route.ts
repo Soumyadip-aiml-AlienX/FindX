@@ -29,6 +29,12 @@ if (YOUTUBE_COOKIE) {
   }
 }
 
+// Curated Trusted Channels
+const TRUSTED_CHANNELS = {
+  mobile: ["beebomco", "Technology Gyan", "TechWiser", "Techy Pathshala", "Trakin TechEnglish", "TechBar", "Gyan Therapy", "Technical Guruji", "Tech Burner", "Techno Ruhez", "Harshit Technical", "Trakin Tech", "Pratima Adhikari", "Tamil Tech - MrTT"],
+  laptop: ["Techum", "Venom's Tech", "TechWiser", "Tech Terminus", "Trakin Tech", "Techy Imran", "WiserGadget", "REVIEW SHEVIEW", "Tech Maan", "TechZonical", "Tech Burner", "Trakin TechEnglish", "Technical Guruji"]
+};
+
 // Helper: Search YouTube with custom date filter
 async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: number = 4) {
   if (!YOUTUBE_API_KEY) return [];
@@ -205,17 +211,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "API Keys Missing" }, { status: 500 });
     }
 
-    console.log("BRAIN INITIALIZED. Searching for:", category, "Budget:", budget);
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
-    // ─────────────────────────────────────────────────────────────────────────
-    console.log("--- STAGE 1: SEARCHING (LAST 4 MONTHS) ---");
-    const mainQuery = `best ${category} under ${budget} India 2026 reviews comparison${excludeQuery}`;
-
-    // STRICT 4 MONTH FILTER as requested
-    const allVideos = await searchYouTube(mainQuery, 25, 4);
-    console.log(`Found ${allVideos.length} recent videos. Watching carefully...`);
+    console.log("--- STAGE 1: SEARCHING (TRUSTED CHANNELS ONLY) ---");
+    const excludeQuery = excludedBrands && excludedBrands.length > 0 
+      ? excludedBrands.map((b: string) => ` -"${b}"`).join('') 
+      : '';
+    
+    // We will do multiple targeted searches to ensure we get videos from the trusted list
+    const targetChannels = (category === 'mobile' ? TRUSTED_CHANNELS.mobile : TRUSTED_CHANNELS.laptop).slice(0, 8);
+    const searchTasks = targetChannels.map(channel => 
+      searchYouTube(`${category} under ${budget} ${channel} 2026 comparison ${excludeQuery}`, 3, 4)
+    );
+    
+    const searchResults = await Promise.all(searchTasks);
+    const allVideos = searchResults.flat().slice(0, 25);
+    
+    console.log(`Found ${allVideos.length} videos from trusted channels. Watching carefully...`);
 
     const summaryResults: string[] = [];
     let videosWatched = 0;
