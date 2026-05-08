@@ -72,7 +72,7 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
         
         const payload = {
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: useJSON ? { responseMimeType: "application/json" } : undefined
+          generation_config: useJSON ? { response_mime_type: "application/json" } : undefined
         };
 
         const response = await fetch(url, {
