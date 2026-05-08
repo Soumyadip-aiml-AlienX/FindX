@@ -42,35 +42,49 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
   }
 }
 
-// Helper: Ask Gemini with automatic fallback and retry logic
+// Helper: Ask Gemini with automatic fallback and retry logic (DIRECT FETCH VERSION)
 async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
-  const models = ["models/gemini-1.5-flash", "models/gemini-1.5-pro", "gemini-1.5-flash"];
+  const models = ["gemini-1.5-flash", "gemini-1.5-pro"];
   let lastError: any = null;
 
-  console.log("DEBUG: askGemini triggered.");
+  console.log("DEBUG: askGemini triggered (DIRECT FETCH MODE).");
 
   for (const modelName of models) {
     let retries = 2;
     while (retries > 0) {
       try {
-        console.log(`DEBUG: Attempting AI call with model: ${modelName} (Retries left: ${retries})`);
-        const model = ai.getGenerativeModel({ 
-          model: modelName,
-          generationConfig: useJSON ? { responseMimeType: "application/json" } : undefined
-        });
+        console.log(`DEBUG: Attempting Direct Fetch with model: ${modelName}`);
         
-        const res = await model.generateContent(prompt);
-        const response = await res.response;
-        const text = response.text();
+        const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+        
+        const payload = {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: useJSON ? { responseMimeType: "application/json" } : undefined
+        };
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error?.message || `HTTP ${response.status}`);
+        }
+
+        const text = data.candidates[0].content.parts[0].text;
         
         if (useJSON) {
           const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
           return JSON.parse(cleanedText);
         }
         return text;
+
       } catch (e: any) {
         lastError = e;
-        console.warn(`DEBUG: Model ${modelName} failed. Error:`, e.message || e);
+        console.warn(`DEBUG: Direct Fetch failed for ${modelName}:`, e.message || e);
         await new Promise(r => setTimeout(r, 2000));
         retries--;
       }
