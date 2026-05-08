@@ -44,13 +44,14 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 
 // Helper: Ask Gemini with automatic fallback and retry logic
 async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
-  const models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro"];
+  const models = ["gemini-1.5-flash", "gemini-1.5-pro"];
   let lastError: any = null;
 
   for (const modelName of models) {
     let retries = 2;
     while (retries > 0) {
       try {
+        console.log(`DEBUG: Attempting AI call with model: ${modelName} (Retries left: ${retries})`);
         const model = ai.getGenerativeModel({ 
           model: modelName,
           generationConfig: useJSON ? { responseMimeType: "application/json" } : undefined
@@ -67,19 +68,15 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
         return text;
       } catch (e: any) {
         lastError = e;
-        console.warn(`Model ${modelName} failed (Retries left: ${retries-1}). Error:`, e.message);
-        if (e.message?.includes('429')) { // Rate limit - wait longer
-           await new Promise(r => setTimeout(r, 3000));
-        } else {
-           await new Promise(r => setTimeout(r, 1000));
-        }
+        console.warn(`DEBUG: Model ${modelName} failed. Error:`, e.message || e);
+        await new Promise(r => setTimeout(r, 2000));
         retries--;
       }
     }
   }
   
-  console.error("ALL MODELS FAILED. Final error:", lastError);
-  throw lastError || new Error("AI Brain Overloaded");
+  console.error("--- ALL AI MODELS FAILED ---");
+  throw lastError || new Error("AI Brain Connectivity Issue");
 }
 
 // Helper: Ask Gemini for JSON response (now using the unified helper)
@@ -97,8 +94,10 @@ export async function POST(request: Request) {
     const specs = requirements.join(', ');
 
     if (!YOUTUBE_API_KEY || !GEMINI_API_KEY) {
+      console.error("CRITICAL: Missing API Keys! YOUTUBE:", !!YOUTUBE_API_KEY, "GEMINI:", !!GEMINI_API_KEY);
       return NextResponse.json({ success: true, recommendation: { devices: [] } });
     }
+    console.log("BRAIN INITIALIZED. Keys present.");
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
