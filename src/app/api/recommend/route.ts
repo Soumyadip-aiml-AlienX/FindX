@@ -50,46 +50,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, recommendation: { devices: [] } }); 
     }
 
-    // STAGE 1: Broad Market Research (Get 10 recent review videos)
-    const marketQuery = `top ${category} under ${budget} india ${new Date().getFullYear()} reviews comparison`;
-    const marketVideos = await searchYouTube(marketQuery, 10);
-    const marketContext = marketVideos.map(v => v.title).join('\n');
+    // STAGE 1: Broad Market Scan (20 videos from last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const publishedAfter = sixMonthsAgo.toISOString();
+    
+    const marketQuery = `best ${category} under ${budget} india reviews comparison 2024`;
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(marketQuery)}&type=video&maxResults=20&publishedAfter=${publishedAfter}&relevanceLanguage=en&regionCode=IN&key=${YOUTUBE_API_KEY}`;
+    
+    const res = await fetch(searchUrl);
+    const data = await res.json();
+    const marketVideos = data.items || [];
+    const marketContext = marketVideos.map((v: any, i: number) => `[Video ${i+1}] ${v.snippet.title}`).join('\n');
 
-    // STAGE 2: Identify Top 3 Candidates
-    const candidatePrompt = `
-      Based on these recent YouTube video titles for ${category} under ₹${budget} in India:
+    // STAGE 2: Filter the Market (Identify Top 3 Candidates from 15-20 mentioned devices)
+    const filterPrompt = `
+      You are an expert tech researcher. I have scanned the top 20 YouTube reviews for ${category} under ₹${budget} in India from the last 6 months.
+      Here are the video titles:
       ${marketContext}
 
-      Identify the TOP 3 most promising device models that users and reviewers are talking about right now.
-      Prioritize these brands if they appear: ${finalCompanies}.
+      Based on these titles, identify the 3 most recommended and highly-rated device models that fit the "all-rounder" or specific priorities: ${requirements.join(', ')}.
+      Heavily prioritize brands: ${finalCompanies}.
       Return ONLY the names of the 3 devices as a comma-separated list.
     `;
 
-    const candidateRes = await ai.getGenerativeModel({ model: 'gemini-1.5-flash' }).generateContent(candidatePrompt);
-    const candidates = candidateRes.response.text().split(',').map(c => c.trim()).filter(c => c.length > 0);
+    const filterRes = await ai.getGenerativeModel({ model: 'gemini-1.5-flash' }).generateContent(filterPrompt);
+    const candidates = filterRes.response.text().split(',').map(c => c.trim()).filter(c => c.length > 0);
 
-    // STAGE 3: Deep Review Analysis (Fetch transcripts for specific reviews of candidates)
+    // STAGE 3: Specific Review Analysis
     let deepReviewData = "";
     for (const candidate of candidates.slice(0, 3)) {
-      const reviewVideos = await searchYouTube(`${candidate} India review long term`, 1);
+      const reviewVideos = await searchYouTube(`${candidate} India review latest`, 1);
       if (reviewVideos.length > 0) {
         const transcript = await getTranscriptText(reviewVideos[0].id);
         if (transcript) {
-          deepReviewData += `\nDEVICE: ${candidate}\nREVIEW DATA: ${transcript.substring(0, 4000)}\n`;
+          deepReviewData += `\nDEVICE: ${candidate}\nREVIEW DATA: ${transcript.substring(0, 5000)}\n`;
         } else {
-          deepReviewData += `\nDEVICE: ${candidate}\n(Transcript unavailable, rely on internal knowledge for this model)\n`;
+          deepReviewData += `\nDEVICE: ${candidate}\n(Used general knowledge for this model as transcript was unavailable)\n`;
         }
       }
     }
 
-    // STAGE 4: Final Comparison & Verdict
+    // STAGE 4: Final Competition & Suggestions
     const finalPrompt = `
-      You are an expert Indian tech consultant. Compare these devices for a user with budget ₹${budget} and priorities: ${requirements.join(', ')}.
+      You are an expert Indian tech consultant. You have identified 3 candidates based on market popularity. 
+      Now, perform a final competition based on these deep-dive review summaries for a user with budget ₹${budget} and priorities: ${requirements.join(', ')}.
       
-      Research Data:
+      Review Data:
       ${deepReviewData}
 
-      Pick the TOP 2 devices and provide a detailed comparison.
+      Pick the TOP 2 devices. The #1 spot must be the "Winner" of the competition.
       Return ONLY a JSON object:
       {
         "devices": [
@@ -100,7 +110,7 @@ export async function POST(request: Request) {
             "buy_link": "URL",
             "specs": { "processor": "string", "display": "string", "ram_storage": "string", "battery": "string", "camera_or_gpu": "string" },
             "pros": ["string", "string", "string"],
-            "verdict": "Detailed explanation of why this won"
+            "verdict": "Detailed explanation of why this won the competition over others"
           }
         ]
       }
