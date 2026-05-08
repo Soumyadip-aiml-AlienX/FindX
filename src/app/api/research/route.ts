@@ -305,41 +305,48 @@ export async function POST(request: Request) {
     
     // 3. Sequential Watching (Prevents 429 Rate Limits)
     console.log(`Found ${allVideos.length} high-quality videos. Watching the Top 5 carefully...`);
-    const finalWatchPool = allVideos.slice(0, 5); // Limit to top 5 for stability
+    const finalWatchPool = allVideos.slice(0, 5); 
     const summaryResults: string[] = [];
 
     for (const video of finalWatchPool) {
       try {
         console.log(`Watching video: ${video.title}`);
         const transcript = await getTranscript(video.id, 6000);
+        
         if (transcript && transcript.length > 500) {
+          console.log(`Analyzing transcript for: ${video.title}`);
           const summaryPrompt = `
 Carefully analyze this video transcript: "${video.title}"
 Transcript: ${transcript}
 
 TASK: Extract every technical detail, benchmark, and the CURRENT MAY 2026 market price (₹) mentioned.
-STRICT RULE: Focus ONLY on the current price today. If the reviewer says "it launched at 40k but now it is 35k," use 35k.
+STRICT RULE: Focus ONLY on the current price today.
 EXCLUDE RULE: Do NOT mention any devices from these brands: ${excludedBrands?.join(', ') || 'None'}.
 Focus specifically on ${category} under ₹${budget}.
       `;
 
-      try {
-        const summary = await askGemini(summaryPrompt);
-        summaryResults.push(`[Source: ${video.title}]\n${summary}`);
+          const summary = await askGemini(summaryPrompt);
+          summaryResults.push(`[Source: ${video.title}]\n${summary}`);
+          
+          // Human-like delay
+          await new Promise(r => setTimeout(r, 2000));
+        }
       } catch (e) {
-        console.warn(`AI Error while watching ${video.title}`);
+        console.warn(`Error while watching ${video.title}, skipping...`);
       }
     }
 
     const RefinedKnowledge = summaryResults.join('\n\n---\n\n');
-    if (!RefinedKnowledge) throw new Error("Could not find any videos with watchable transcripts from the last 4 months.");
+    if (!RefinedKnowledge) {
+      return NextResponse.json({ success: false, error: "No watchable content found. Please try again in 1 minute." }, { status: 429 });
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 2: TECHNICAL SHORTLIST
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 2: SHORTLISTING ---");
     const extractPrompt = `
-Based ONLY on these ${videosWatched} recent video transcripts:
+Based ONLY on these ${summaryResults.length} recent video transcripts:
 ${RefinedKnowledge}
 
 TASK: Select the top 3 ${category} for ₹${budget}.
