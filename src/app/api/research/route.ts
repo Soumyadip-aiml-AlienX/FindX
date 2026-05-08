@@ -49,8 +49,16 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
     const data = await res.json();
     
     if (data.error) {
-      console.error(`YOUTUBE API ERROR:`, data.error.message);
-      return [];
+      console.error(`YOUTUBE API QUOTA HIT. Switching to Stealth Scraper...`);
+      // FALLBACK: Use play-dl (No API Key required)
+      const play = await import('play-dl');
+      const results = await play.search(query, { limit: maxResults, source: { youtube: 'video' } });
+      return results.map(v => ({
+        id: v.id,
+        title: v.title,
+        channelTitle: v.channel?.name || 'Unknown',
+        publishedAt: v.uploadedAt || new Date().toISOString(),
+      }));
     }
 
     if (data.items && data.items.length > 0) {
