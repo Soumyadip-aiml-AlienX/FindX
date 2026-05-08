@@ -154,30 +154,31 @@ export async function POST(request: Request) {
     
     // SEQUENTIAL PROCESSING
     for (const video of allVideos) {
-      if (videosWithData >= 8) break; // Limit to 8 high-quality sources to keep speed reasonable
+      if (videosWithData >= 10) break; // Increased to 10 sources for better variety
 
-      console.log(`Checking transcript for: ${video.title}`);
-      const text = await getTranscript(video.id, 9000);
+      console.log(`Analyzing: ${video.title}`);
+      const transcript = await getTranscript(video.id, 9000);
       
-      if (!text) {
-        console.warn(`No transcript for ${video.id}, skipping.`);
-        continue;
-      }
+      // FALLBACK METHOD: If transcript is missing, use title and snippet metadata
+      const sourceData = transcript 
+        ? `TRANSCRIPT: ${transcript}` 
+        : `METADATA: This video title is "${video.title}". Use your knowledge of ${currentYear} devices to infer specs if the title is specific.`;
 
       videosWithData++;
-      console.log(`Processing AI Summary for: ${video.title} (${videosWithData}/8)`);
+      console.log(`Processing Stage 1 AI for: ${video.title} (${videosWithData}/10)`);
       
       const summaryPrompt = `
-Extract technical specs, Indian pricing (₹), and performance data for ${category} in this video: "${video.title}"
-Transcript: ${text}
-CRITICAL: Only focus on devices released in ${currentYear} or late ${currentYear-1}. Skip older models.
+Extract/Predict technical specs, Indian pricing (₹), and performance for ${category} from this source:
+${sourceData}
+CRITICAL: Only focus on devices released in ${currentYear} or late ${currentYear-1}. 
+If you only have the title, use your expert knowledge of 2026 tech to provide the likely specs for that specific model.
       `;
       
       try {
         const summary = await askGemini(summaryPrompt);
         summaryResults.push(`[Source: ${video.title}]\n${summary}`);
       } catch (e) {
-        console.warn(`AI Error summarizing ${video.title}`);
+        console.warn(`AI Error for ${video.title}`);
       }
     }
 
