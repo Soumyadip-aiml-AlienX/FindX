@@ -40,6 +40,16 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
     console.error(`Transcript error for ${videoId}:`, e);
     return null;
   }
+// Helper: Raw Fetch Model Sniffer
+async function sniffModels() {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    console.log("DEBUG: FETCH SNIFFER RESULT:", JSON.stringify(data).substring(0, 500));
+  } catch (e: any) {
+    console.error("DEBUG: FETCH SNIFFER CRASHED:", e.message);
+  }
 }
 
 // Helper: Ask Gemini with automatic fallback and retry logic (DIRECT FETCH VERSION)
@@ -114,6 +124,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, recommendation: { devices: [] } });
     }
     console.log("BRAIN INITIALIZED. Keys present.");
+    await sniffModels();
 
     // Model Sniffer: List authorized models immediately
     try {
