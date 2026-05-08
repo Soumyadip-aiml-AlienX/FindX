@@ -41,7 +41,7 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
     return transcript.map(t => t.text).join(' ').substring(0, charLimit);
   } catch (e) {
     console.warn(`Native transcript failed for ${videoId}, attempting Audio-Listening (AssemblyAI)...`);
-    
+
     // METHOD 2: Audio-Listening Fallback
     if (!ASSEMBLYAI_API_KEY) {
       console.error("Missing ASSEMBLYAI_API_KEY! Cannot listen to audio.");
@@ -70,91 +70,79 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
   }
 }
 
-// Helper: Raw Fetch Model Sniffer
-async function sniffModels() {
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    console.log("DEBUG: FETCH SNIFFER RESULT:", JSON.stringify(data).substring(0, 500));
-  } catch (e: any) {
-    console.error("DEBUG: FETCH SNIFFER CRASHED:", e.message);
-  }
-}
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 
-// Helper: Ask Gemini with automatic fallback and retry logic (DIRECT FETCH VERSION)
-async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
-  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"];
-  let lastError: any = null;
+// Helper: Ask the AI Brain (Groq Primary, Gemini Fallback)
+async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> {
+  // --- METHOD 1: GROQ (Primary - Ultra Fast) ---
+  if (GROQ_API_KEY) {
+    try {
+      console.log("DEBUG: Attempting Groq (Llama 3)...");
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GROQ_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "llama3-70b-8192", 
+          messages: [{ role: "user", content: prompt }],
+          response_format: useJSON ? { type: "json_object" } : undefined,
+          temperature: 0.1
+        })
+      });
 
-  console.log("DEBUG: askGemini triggered (DIRECT FETCH MODE).");
-
-  for (const modelName of models) {
-    let retries = 2;
-    while (retries > 0) {
-      try {
-        // PACE: Wait 4 seconds to stay well under Free Tier 20 RPM limit (which is 1 request every 3s)
-        await new Promise(r => setTimeout(r, 4000));
-        
-        console.log(`DEBUG: Attempting Direct Fetch with model: ${modelName}`);
-        
-        const fullModelName = modelName.startsWith("models/") ? modelName : `models/${modelName}`;
-        // Using v1beta as it generally has wider model support for newer releases
-        const url = `https://generativelanguage.googleapis.com/v1beta/${fullModelName}:generateContent?key=${GEMINI_API_KEY}`;
-        
-        const payload = {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: useJSON ? { response_mime_type: "application/json" } : {}
-        };
-
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.error(`DEBUG: API Error Response for ${modelName}:`, JSON.stringify(data));
-          throw new Error(data.error?.message || `HTTP ${response.status}`);
-        }
-
-        if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
-          console.warn(`DEBUG: Empty candidates for ${modelName}. Possible safety block or filter.`);
-          throw new Error("Empty AI response (Safety/Filter)");
-        }
-
-        const text = data.candidates[0].content.parts[0].text;
-        
+      const data = await res.json();
+      if (res.ok && data.choices?.[0]?.message?.content) {
+        let text = data.choices[0].message.content;
         if (useJSON) {
-          try {
-            const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(cleanedText);
-          } catch (jsonErr) {
-            console.error("DEBUG: JSON Parse Error:", jsonErr, "Raw Text:", text);
-            throw new Error("Invalid JSON returned by AI");
+          try { return JSON.parse(text); } catch (e) {
+            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(text);
           }
         }
         return text;
-
-      } catch (e: any) {
-        lastError = e;
-        console.warn(`DEBUG: Direct Fetch failed for ${modelName}:`, e.message || e);
-        await new Promise(r => setTimeout(r, 2000));
-        retries--;
       }
+      console.warn("Groq failed, falling back to Gemini...");
+    } catch (e: any) {
+      console.warn("Groq Error:", e.message);
     }
   }
-  
-  console.error("--- ALL AI MODELS FAILED ---");
-  throw lastError || new Error("AI Brain Connectivity Issue");
+
+  // --- METHOD 2: GEMINI (Fallback) ---
+  const models = ["gemini-1.5-flash", "gemini-1.5-pro"];
+  for (const modelName of models) {
+    try {
+      // Pacing for Gemini
+      await new Promise(r => setTimeout(r, 6000));
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: useJSON ? { response_mime_type: "application/json" } : {}
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        let text = data.candidates[0].content.parts[0].text;
+        if (useJSON) {
+          text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+          return JSON.parse(text);
+        }
+        return text;
+      }
+    } catch (e) {
+      console.warn(`Gemini ${modelName} failed.`);
+    }
+  }
+
+  throw new Error("All AI Brains are offline. Check your API Keys.");
 }
 
-// Helper: Ask Gemini for JSON response
-async function askGeminiJSON(prompt: string): Promise<any> {
-  return await askGemini(prompt, true);
-}
+async function askGemini(prompt: string): Promise<any> { return askBrain(prompt); }
+async function askGeminiJSON(prompt: string): Promise<any> { return askBrain(prompt, true); }
 
 export async function POST(request: Request) {
   try {
@@ -168,7 +156,6 @@ export async function POST(request: Request) {
     }
 
     console.log("BRAIN INITIALIZED. Searching for:", category, "Budget:", budget);
-    await sniffModels();
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
@@ -176,14 +163,14 @@ export async function POST(request: Request) {
     console.log("--- STAGE 1: SEARCHING (LAST 4 MONTHS) ---");
     const currentYear = new Date().getFullYear();
     const mainQuery = `best ${category} under ${budget} India 2026 reviews comparison`;
-    
+
     // STRICT 4 MONTH FILTER as requested
-    const allVideos = await searchYouTube(mainQuery, 25, 4); 
+    const allVideos = await searchYouTube(mainQuery, 25, 4);
     console.log(`Found ${allVideos.length} recent videos. Watching carefully...`);
 
     const summaryResults: string[] = [];
     let videosWatched = 0;
-    
+
     // SEQUENTIAL PROCESSING
     for (const video of allVideos) {
       if (videosWatched >= 6) break; // Watch 6 videos extremely carefully
@@ -191,7 +178,7 @@ export async function POST(request: Request) {
       console.log(`Watching video: ${video.title}`);
       // Increased charLimit to 12000 for "careful watching"
       const transcript = await getTranscript(video.id, 12000);
-      
+
       if (!transcript) {
         console.warn(`Skipping ${video.title} - No transcript available to watch.`);
         continue;
@@ -199,7 +186,7 @@ export async function POST(request: Request) {
 
       videosWatched++;
       console.log(`Analyzing transcript for: ${video.title} (${videosWatched}/6)`);
-      
+
       const summaryPrompt = `
 Carefully analyze this video transcript: "${video.title}"
 Transcript: ${transcript}
@@ -208,7 +195,7 @@ TASK: Extract every technical detail, benchmark, and Indian price (₹) mentione
 STRICT RULE: ONLY use data from this transcript. Do NOT use your internal knowledge from 2023 or 2024.
 Focus specifically on ${category} under ₹${budget}.
       `;
-      
+
       try {
         const summary = await askGemini(summaryPrompt);
         summaryResults.push(`[Source: ${video.title}]\n${summary}`);
@@ -244,7 +231,7 @@ Return ONLY the 3 device names as a comma-separated list.
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 3: DEEP DIVING ---");
     const reviewKnowledgeParts: string[] = [];
-    
+
     for (const device of candidates) {
       console.log(`Searching for deep reviews of: ${device}`);
       const reviewVideos = await searchYouTube(`${device} India review full test`, 3, 4);
@@ -252,7 +239,7 @@ Return ONLY the 3 device names as a comma-separated list.
         const t = await getTranscript(rv.id, 12000); // Careful watching
         if (!t) continue;
         const p = `Watch this review carefully: "${rv.title}"\nTranscript: ${t}\nExtract deep benchmark scores, battery life, and heating issues for "${device}".`;
-        try { 
+        try {
           const s = await askGemini(p);
           reviewKnowledgeParts.push(`=== DEEP RESEARCH: ${device} ===\nSource: ${rv.title}\n${s}`);
         } catch (e) {
