@@ -145,15 +145,16 @@ export async function POST(request: Request) {
       ${combinedTranscripts}
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
+    const response = await ai.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+    }).generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
         responseMimeType: "application/json",
       }
     });
 
-    const llmOutput = response.text || "{}";
+    const llmOutput = response.response.text() || "{}";
     const resultJson = JSON.parse(llmOutput);
 
     return NextResponse.json({

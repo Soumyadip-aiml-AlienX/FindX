@@ -386,85 +386,91 @@ export default function Home() {
             </div>
 
             <div className={styles.comparisonGrid}>
-              {results.devices.map((device: any, index: number) => (
-                <motion.div 
-                  key={index}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.15, type: 'spring' }}
-                  className={`${styles.deviceCard} ${index === 0 ? styles.winner : ''}`}
-                >
-                  {index === 0 && <div className={styles.winnerBadge}>🏆 Top Pick</div>}
-                  <div className={styles.cardHeader}>
-                    <h2 className={styles.deviceName}>
-                      {device.name}
-                      {device.release_year && <span className={styles.releaseYear}> ({device.release_year})</span>}
-                    </h2>
-                    <div className={styles.devicePrice}>~ ₹{device.price}</div>
-                  </div>
-                  
-                  {device.specs && (
-                    <div className={styles.specsGrid}>
-                      <div className={styles.specItem}>
-                        <Cpu size={18} className={styles.specIcon} />
-                        <div className={styles.specContent}>
-                          <span className={styles.specLabel}>Processor</span>
-                          <span className={styles.specValue}>{device.specs.processor}</span>
-                        </div>
-                      </div>
-                      <div className={styles.specItem}>
-                        <Monitor size={18} className={styles.specIcon} />
-                        <div className={styles.specContent}>
-                          <span className={styles.specLabel}>Display</span>
-                          <span className={styles.specValue}>{device.specs.display}</span>
-                        </div>
-                      </div>
-                      <div className={styles.specItem}>
-                        <MemoryStick size={18} className={styles.specIcon} />
-                        <div className={styles.specContent}>
-                          <span className={styles.specLabel}>RAM & Storage</span>
-                          <span className={styles.specValue}>{device.specs.ram_storage}</span>
-                        </div>
-                      </div>
-                      <div className={styles.specItem}>
-                        <Battery size={18} className={styles.specIcon} />
-                        <div className={styles.specContent}>
-                          <span className={styles.specLabel}>Battery</span>
-                          <span className={styles.specValue}>{device.specs.battery}</span>
-                        </div>
-                      </div>
-                      <div className={styles.specItem}>
-                        {category === 'mobile' ? <Camera size={18} className={styles.specIcon} /> : <Gamepad2 size={18} className={styles.specIcon} />}
-                        <div className={styles.specContent}>
-                          <span className={styles.specLabel}>{category === 'mobile' ? 'Cameras' : 'GPU'}</span>
-                          <span className={styles.specValue}>{device.specs.camera_or_gpu}</span>
-                        </div>
-                      </div>
+              {results.devices && results.devices.length > 0 ? (
+                results.devices.map((device: any, index: number) => (
+                  <motion.div 
+                    key={index}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.15, type: 'spring' }}
+                    className={`${styles.deviceCard} ${index === 0 ? styles.winner : ''}`}
+                  >
+                    {index === 0 && <div className={styles.winnerBadge}>🏆 Top Pick</div>}
+                    <div className={styles.cardHeader}>
+                      <h2 className={styles.deviceName}>
+                        {device.name}
+                        {device.release_year && <span className={styles.releaseYear}> ({device.release_year})</span>}
+                      </h2>
+                      <div className={styles.devicePrice}>~ ₹{device.price}</div>
                     </div>
-                  )}
-                  
-                  <ul className={styles.featureList}>
-                    {device.pros.map((pro: string, i: number) => (
-                      <li key={`pro-${i}`} className={styles.featureItem}>
-                        <CheckCircle2 size={20} className={styles.featureIcon} />
-                        <span className={styles.featureText}>{pro}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className={styles.verdict}>
-                    <div className={styles.verdictTitle}>Why it fits you:</div>
-                    <p>{device.verdict}</p>
-                  </div>
-
-                  {device.buy_link && (
-                    <a href={device.buy_link} target="_blank" rel="noopener noreferrer" className={styles.buyBtn}>
-                      <ShoppingCart size={18} />
-                      Find Best Price
-                    </a>
-                  )}
-                </motion.div>
-              ))}
+                    
+                    {device.specs && (
+                      <div className={styles.specsGrid}>
+                        <div className={styles.specItem}>
+                          <Cpu size={18} className={styles.specIcon} />
+                          <div className={styles.specContent}>
+                            <span className={styles.specLabel}>Processor</span>
+                            <span className={styles.specValue}>{device.specs.processor}</span>
+                          </div>
+                        </div>
+                        <div className={styles.specItem}>
+                          <Monitor size={18} className={styles.specIcon} />
+                          <div className={styles.specContent}>
+                            <span className={styles.specLabel}>Display</span>
+                            <span className={styles.specValue}>{device.specs.display}</span>
+                          </div>
+                        </div>
+                        <div className={styles.specItem}>
+                          <MemoryStick size={18} className={styles.specIcon} />
+                          <div className={styles.specContent}>
+                            <span className={styles.specLabel}>RAM & Storage</span>
+                            <span className={styles.specValue}>{device.specs.ram_storage}</span>
+                          </div>
+                        </div>
+                        <div className={styles.specItem}>
+                          <Battery size={18} className={styles.specIcon} />
+                          <div className={styles.specContent}>
+                            <span className={styles.specLabel}>Battery</span>
+                            <span className={styles.specValue}>{device.specs.battery}</span>
+                          </div>
+                        </div>
+                        <div className={styles.specItem}>
+                          {category === 'mobile' ? <Camera size={18} className={styles.specIcon} /> : <Gamepad2 size={18} className={styles.specIcon} />}
+                          <div className={styles.specContent}>
+                            <span className={styles.specLabel}>{category === 'mobile' ? 'Cameras' : 'GPU'}</span>
+                            <span className={styles.specValue}>{device.specs.camera_or_gpu}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <ul className={styles.featureList}>
+                      {device.pros.map((pro: string, i: number) => (
+                        <li key={`pro-${i}`} className={styles.featureItem}>
+                          <CheckCircle2 size={20} className={styles.featureIcon} />
+                          <span className={styles.featureText}>{pro}</span>
+                        </li>
+                      ))}
+                    </ul>
+  
+                    <div className={styles.verdict}>
+                      <div className={styles.verdictTitle}>Why it fits you:</div>
+                      <p>{device.verdict}</p>
+                    </div>
+  
+                    {device.buy_link && (
+                      <a href={device.buy_link} target="_blank" rel="noopener noreferrer" className={styles.buyBtn}>
+                        <ShoppingCart size={18} />
+                        Find Best Price
+                      </a>
+                    )}
+                  </motion.div>
+                ))
+              ) : (
+                <div className={styles.noResults}>
+                  <p>No perfect matches found for this specific criteria. Try adjusting your budget or selecting more brands.</p>
+                </div>
+              )}
             </div>
 
             <button 
