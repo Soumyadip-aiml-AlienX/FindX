@@ -6,6 +6,7 @@ import play from 'play-dl';
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 
 const aai = new AssemblyAI({ apiKey: ASSEMBLYAI_API_KEY });
 
@@ -72,6 +73,7 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
 
 // Helper: Ask the AI Brain (Groq Primary, Gemini Fallback)
 async function askBrain(prompt: string, useJSON: boolean = false): Promise<any> {
+  console.log(`DEBUG: Brain Active. Keys -> Groq: ${!!GROQ_API_KEY}, Gemini: ${!!GEMINI_API_KEY}`);
   // --- METHOD 1: GROQ (Primary) ---
   if (GROQ_API_KEY) {
     // Try both 70B and 8B models for maximum reliability
