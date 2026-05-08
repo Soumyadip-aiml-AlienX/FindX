@@ -213,9 +213,9 @@ export async function POST(request: Request) {
 
     console.log("--- STAGE 1: SEARCHING (TRUSTED CHANNELS PRIORITIZED) ---");
     
-    // 1. Broad Search first
-    const broadQuery = `best ${category} under ${budget} India 2026 comparison${excludeQuery}`;
-    const allRecentVideos = await searchYouTube(broadQuery, 40, 4);
+    // 1. Broad Search first (Relaxed query to find more results)
+    const broadQuery = `best ${category} under ${budget} India comparison reviews${excludeQuery}`;
+    const allRecentVideos = await searchYouTube(broadQuery, 50, 4);
     
     // 2. Filter for Trusted Channels
     const trustedList = category === 'mobile' ? TRUSTED_CHANNELS.mobile : TRUSTED_CHANNELS.laptop;
