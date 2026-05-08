@@ -84,47 +84,60 @@ export async function POST(request: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // STAGE 1: BROAD YOUTUBE SEARCH
+    // STAGE 1: BROAD YOUTUBE SEARCH & "WATCHING"
     // Search "best mobile under 25000" and get all top videos from last 4 months
     // ─────────────────────────────────────────────────────────────────────────
     const mainQuery = `best ${category} under ${budget} India 2024 full reviews comparison benchmark`;
     const allVideos = await searchYouTube(mainQuery, 25, 4);
 
-    // Fetch transcripts of ALL these videos in parallel (this is "watching" them)
-    const transcriptResults = await Promise.all(
+    // AI "watches" and summarizes ALL 25 videos in parallel
+    const summaryResults = await Promise.all(
       allVideos.map(async (video: any) => {
-        const text = await getTranscript(video.id, 20000);
-        return {
-          title: video.title,
-          date: video.publishedAt,
-          transcript: text,
-        };
+        const text = await getTranscript(video.id, 15000); // Get a good chunk of transcript
+        if (!text) return null;
+
+        const summaryPrompt = `
+You just watched this YouTube video: "${video.title}"
+Date: ${video.publishedAt}
+Transcript: ${text}
+
+EXTRACT ONLY:
+1. Device models mentioned.
+2. Key specs (Processor, RAM, Camera, Battery) for each.
+3. Reviewer's main pros/cons for each.
+4. Final ranking if provided.
+
+Be technical and concise. No fluff.
+        `;
+        
+        try {
+          const summary = await askGemini(summaryPrompt);
+          return `[Source: ${video.title} | Date: ${video.publishedAt}]\n${summary}`;
+        } catch (e) {
+          console.error(`Summary failed for ${video.id}`);
+          return null;
+        }
       })
     );
 
-    // Build a combined knowledge base from all watched videos
-    const watchedData = transcriptResults
-      .filter(v => v.transcript)
-      .map(v => `[Video: "${v.title}" | Date: ${v.date}]\n${v.transcript}`)
-      .join('\n\n---\n\n');
+    // Build a refined knowledge base from all 25 summaries
+    const RefinedKnowledge = summaryResults.filter(s => s !== null).join('\n\n---\n\n');
 
     // ─────────────────────────────────────────────────────────────────────────
-    // STAGE 2: EXTRACT & COMPARE ALL DEVICES, PICK TOP 3
-    // AI "watches" all videos, lists every device mentioned, compares them,
-    // and picks the top 2-3 based on user specifications
+    // STAGE 2: TECHNICAL SHORTLIST
+    // Compare all refined data and pick the top 3 candidates
     // ─────────────────────────────────────────────────────────────────────────
     const extractPrompt = `
-You are a WORLD-CLASS tech research AI. You have just "watched" and analyzed ${transcriptResults.filter(v => v.transcript).length} full YouTube videos (over 200,000 words of data) about ${category} under ₹${budget}.
+You are a WORLD-CLASS tech researcher. You have just analyzed the key technical data from 25+ YouTube review videos about ${category} under ₹${budget}.
 
-Here is the MASSIVE data you extracted:
-${watchedData || 'No transcripts were available. Use your own expert knowledge of the current Indian market instead.'}
+Here is the refined research data:
+${RefinedKnowledge || 'No transcripts were available. Use your expert knowledge instead.'}
 
 TASK:
-1. List EVERY ${category} device mentioned. Do not miss any.
+1. Compare every single device mentioned based on the refined research.
 2. Prioritize the ABSOLUTE LATEST releases (last 1-2 months).
-3. Perform a deep technical comparison based on: ${specs}.
-4. Filter by preferred brands: ${brands}.
-5. Pick the TOP 3 absolute best candidates for the next round of deep review.
+3. Select the top 3 absolute best candidates that match: ${specs}.
+4. Must be from these brands: ${brands}.
 
 Return ONLY the 3 device names as a comma-separated list.
     `;
@@ -133,25 +146,43 @@ Return ONLY the 3 device names as a comma-separated list.
     const candidates = candidateText.split(',').map(c => c.trim()).filter(c => c.length > 2).slice(0, 3);
 
     // ─────────────────────────────────────────────────────────────────────────
-    // STAGE 3: SEARCH FOR SPECIFIC REVIEWS OF THOSE 2-3 DEVICES
-    // Go back to YouTube and search for dedicated reviews of each candidate
+    // STAGE 3: DEEP-DIVE RESEARCH FOR SHORTLIST
+    // Go back to YouTube and watch dedicated reviews of each candidate
     // ─────────────────────────────────────────────────────────────────────────
-    const reviewData = await Promise.all(
+    const deepReviewData = await Promise.all(
       candidates.map(async (device) => {
         const reviewVideos = await searchYouTube(`${device} review India latest long-term`, 3, 4);
-        let reviewText = '';
-        for (const rv of reviewVideos) {
-          const t = await getTranscript(rv.id, 15000);
-          if (t) {
-            reviewText += `\n[Deep Review: "${rv.title}"]\n${t}\n`;
-          }
-        }
-        return { device, reviewText: reviewText || '(Using internal expert knowledge)' };
+        
+        // AI "watches" and summarizes each deep-dive review
+        const summaries = await Promise.all(
+          reviewVideos.map(async (rv) => {
+            const t = await getTranscript(rv.id, 15000);
+            if (!t) return null;
+            
+            const p = `
+You are doing a deep-dive on "${device}".
+Watch this full review: "${rv.title}"
+Transcript: ${t}
+
+EXTRACT DEEP TECH SPECS:
+- Benchmark scores (AnTuTu, Geekbench)
+- Battery screen-on time
+- Thermal performance / throttling
+- Camera sensor models & low-light performance
+- Display color accuracy & brightness nits
+
+Be extremely technical. No fluff.
+            `;
+            return await askGemini(p);
+          })
+        );
+        
+        return { device, reviewSummary: summaries.filter(s => s !== null).join('\n\n') };
       })
     );
 
-    const reviewKnowledge = reviewData
-      .map(r => `=== ${r.device} ===\n${r.reviewText}`)
+    const reviewKnowledge = deepReviewData
+      .map(r => `=== DEEP RESEARCH: ${r.device} ===\n${r.reviewSummary || 'Using internal expert knowledge'}`)
       .join('\n\n');
 
     // ─────────────────────────────────────────────────────────────────────────
