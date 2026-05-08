@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { YoutubeTranscript } from 'youtube-transcript';
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-
-const ai = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Helper: Search YouTube with custom date filter
 async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: number = 4) {
@@ -41,10 +38,11 @@ async function getTranscript(videoId: string, charLimit: number = 8000) {
     return null;
   }
 }
+
 // Helper: Raw Fetch Model Sniffer
 async function sniffModels() {
   try {
-    const url = `https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
     const res = await fetch(url);
     const data = await res.json();
     console.log("DEBUG: FETCH SNIFFER RESULT:", JSON.stringify(data).substring(0, 500));
@@ -55,7 +53,7 @@ async function sniffModels() {
 
 // Helper: Ask Gemini with automatic fallback and retry logic (DIRECT FETCH VERSION)
 async function askGemini(prompt: string, useJSON: boolean = false): Promise<any> {
-  const models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"];
+  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"];
   let lastError: any = null;
 
   console.log("DEBUG: askGemini triggered (DIRECT FETCH MODE).");
@@ -64,17 +62,18 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
     let retries = 2;
     while (retries > 0) {
       try {
-        // PACE: Wait 3 seconds to stay under Free Tier 20 RPM limit
-        await new Promise(r => setTimeout(r, 3000));
+        // PACE: Wait 4 seconds to stay well under Free Tier 20 RPM limit (which is 1 request every 3s)
+        await new Promise(r => setTimeout(r, 4000));
         
         console.log(`DEBUG: Attempting Direct Fetch with model: ${modelName}`);
         
-        // Ensure models/ prefix is present for the direct URL
         const fullModelName = modelName.startsWith("models/") ? modelName : `models/${modelName}`;
-        const url = `https://generativelanguage.googleapis.com/v1/${fullModelName}:generateContent?key=${GEMINI_API_KEY}`;
+        // Using v1beta as it generally has wider model support for newer releases
+        const url = `https://generativelanguage.googleapis.com/v1beta/${fullModelName}:generateContent?key=${GEMINI_API_KEY}`;
         
         const payload = {
-          contents: [{ parts: [{ text: prompt }] }]
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: useJSON ? { response_mime_type: "application/json" } : {}
         };
 
         const response = await fetch(url, {
@@ -86,14 +85,25 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
         const data = await response.json();
 
         if (!response.ok) {
+          console.error(`DEBUG: API Error Response for ${modelName}:`, JSON.stringify(data));
           throw new Error(data.error?.message || `HTTP ${response.status}`);
+        }
+
+        if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
+          console.warn(`DEBUG: Empty candidates for ${modelName}. Possible safety block or filter.`);
+          throw new Error("Empty AI response (Safety/Filter)");
         }
 
         const text = data.candidates[0].content.parts[0].text;
         
         if (useJSON) {
-          const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-          return JSON.parse(cleanedText);
+          try {
+            const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(cleanedText);
+          } catch (jsonErr) {
+            console.error("DEBUG: JSON Parse Error:", jsonErr, "Raw Text:", text);
+            throw new Error("Invalid JSON returned by AI");
+          }
         }
         return text;
 
@@ -110,22 +120,23 @@ async function askGemini(prompt: string, useJSON: boolean = false): Promise<any>
   throw lastError || new Error("AI Brain Connectivity Issue");
 }
 
-// Helper: Ask Gemini for JSON response (now using the unified helper)
+// Helper: Ask Gemini for JSON response
 async function askGeminiJSON(prompt: string): Promise<any> {
   return await askGemini(prompt, true);
 }
 
 export async function POST(request: Request) {
   try {
-    const { budget, category, selectedReqs, preferredCompanies, isAllRounder } = await request.json();
+    const { budget, category, selectedReqs, preferredCompanies } = await request.json();
     const brands = preferredCompanies && preferredCompanies.length > 0 ? preferredCompanies.join(', ') : 'Any';
     const specs = selectedReqs ? selectedReqs.join(', ') : 'All-Rounder';
 
-    if (!YOUTUBE_API_KEY || !GEMINI_API_KEY) {
-      console.error("CRITICAL: Missing API Keys! YOUTUBE:", !!YOUTUBE_API_KEY, "GEMINI:", !!GEMINI_API_KEY);
-      return NextResponse.json({ success: true, recommendation: { devices: [] } });
+    if (!GEMINI_API_KEY || !YOUTUBE_API_KEY) {
+      console.error("CRITICAL: Missing API Keys!");
+      return NextResponse.json({ success: false, error: "API Keys Missing" }, { status: 500 });
     }
-    console.log("BRAIN INITIALIZED. Keys present.");
+
+    console.log("BRAIN INITIALIZED. Searching for:", category, "Budget:", budget);
     await sniffModels();
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -134,50 +145,43 @@ export async function POST(request: Request) {
     console.log("--- STAGE 1: SEARCHING ---");
     const currentYear = new Date().getFullYear();
     const mainQuery = `best ${category} under ${budget} India ${currentYear} full reviews comparison benchmark`;
-    const allVideos = await searchYouTube(mainQuery, 25, 6);
+    const allVideos = await searchYouTube(mainQuery, 10, 6); // Reduced to 10 for speed and reliability
     console.log(`Found ${allVideos.length} videos.`);
 
-    const summaryResults: (string | null)[] = [];
-    for (let i = 0; i < allVideos.length; i += 5) {
-      console.log(`Processing batch ${Math.floor(i/5) + 1}...`);
-      const batch = allVideos.slice(i, i + 5);
-      const batchResults = await Promise.all(
-        batch.map(async (video: any) => {
-          const text = await getTranscript(video.id, 12000);
-          if (!text) return null;
+    const summaryResults: string[] = [];
+    
+    // SEQUENTIAL PROCESSING to strictly respect rate limits
+    for (const video of allVideos) {
+      console.log(`Analyzing video: ${video.title}`);
+      const text = await getTranscript(video.id, 8000);
+      if (!text) continue;
 
-          const summaryPrompt = `Extract technical specs and pros/cons for devices in this video: "${video.title}"\nTranscript: ${text}`;
-          
-          try {
-            await new Promise(r => setTimeout(r, 500));
-            const summary = await askGemini(summaryPrompt);
-            return `[Source: ${video.title}]\n${summary}`;
-          } catch (e) {
-            return null;
-          }
-        })
-      );
-      summaryResults.push(...batchResults);
-      if (i + 5 < allVideos.length) await new Promise(r => setTimeout(r, 1000));
+      const summaryPrompt = `Extract technical specs and pros/cons for devices in this video: "${video.title}"\nTranscript: ${text}\nFocus on ${category} under ₹${budget}.`;
+      
+      try {
+        const summary = await askGemini(summaryPrompt);
+        summaryResults.push(`[Source: ${video.title}]\n${summary}`);
+      } catch (e) {
+        console.warn(`Skipping video ${video.title} due to AI error.`);
+      }
     }
 
-    const RefinedKnowledge = summaryResults.filter(s => s !== null).join('\n\n---\n\n');
-    console.log(`Refined Knowledge size: ${RefinedKnowledge.length} chars.`);
+    const RefinedKnowledge = summaryResults.join('\n\n---\n\n');
+    console.log(`Refined Knowledge gathered from ${summaryResults.length} videos.`);
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 2: TECHNICAL SHORTLIST
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 2: SHORTLISTING ---");
     const extractPrompt = `
-You are a WORLD-CLASS tech researcher. Analyzed ${summaryResults.filter(s => s !== null).length} videos.
-Data: ${RefinedKnowledge || 'No transcripts available. Use your internal expert knowledge of the Indian market in 2024 instead.'}
+You are a WORLD-CLASS tech researcher. Based on the following data, select the top 3 ${category} for ₹${budget} (Specs: ${specs}, Brands: ${brands}).
+Data: ${RefinedKnowledge || 'No transcripts available. Use your expert knowledge of the Indian market in ' + currentYear + ' instead.'}
 
-TASK: Select top 3 candidates for ${category} under ₹${budget} (Specs: ${specs}, Brands: ${brands}).
-Return ONLY the 3 device names as a comma-separated list.
+TASK: Return ONLY the 3 device names as a comma-separated list.
     `;
 
     const candidateText = await askGemini(extractPrompt);
-    const candidates = candidateText.split(',').map(c => c.trim()).filter(c => c.length > 2).slice(0, 3);
+    const candidates = candidateText.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 2).slice(0, 3);
     console.log("Candidates selected:", candidates);
 
     if (candidates.length === 0) throw new Error("No candidates found in research.");
@@ -186,39 +190,40 @@ Return ONLY the 3 device names as a comma-separated list.
     // STAGE 3: DEEP-DIVE RESEARCH
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 3: DEEP DIVING ---");
-    const deepReviewData = await Promise.all(
-      candidates.map(async (device) => {
-        const reviewVideos = await searchYouTube(`${device} review India latest long-term`, 2, 4);
-        const summaries = await Promise.all(
-          reviewVideos.map(async (rv) => {
-            const t = await getTranscript(rv.id, 10000);
-            if (!t) return null;
-            const p = `Extract technical benchmark data and battery stats for "${device}" from this review: "${rv.title}"\nTranscript: ${t}`;
-            try { return await askGemini(p); } catch (e) { return null; }
-          })
-        );
-        return { device, reviewSummary: summaries.filter(s => s !== null).join('\n\n') };
-      })
-    );
+    const reviewKnowledgeParts: string[] = [];
+    
+    for (const device of candidates) {
+      console.log(`Deep diving into: ${device}`);
+      const reviewVideos = await searchYouTube(`${device} review India latest long-term`, 2, 4);
+      for (const rv of reviewVideos) {
+        const t = await getTranscript(rv.id, 8000);
+        if (!t) continue;
+        const p = `Extract technical benchmark data and battery stats for "${device}" from this review: "${rv.title}"\nTranscript: ${t}`;
+        try { 
+          const s = await askGemini(p);
+          reviewKnowledgeParts.push(`=== DEEP RESEARCH: ${device} ===\nSource: ${rv.title}\n${s}`);
+        } catch (e) {
+          console.warn(`Skipping deep dive for ${device} on video ${rv.title}`);
+        }
+      }
+    }
 
-    const reviewKnowledge = deepReviewData
-      .map(r => `=== DEEP RESEARCH: ${r.device} ===\n${r.reviewSummary || 'Using expert knowledge'}`)
-      .join('\n\n');
+    const reviewKnowledge = reviewKnowledgeParts.join('\n\n');
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 4: PICK TOP 2
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 4: FILTERING TOP 2 ---");
     const top2Prompt = `
-Watch these reviews:
+Compare these finalists:
 ${reviewKnowledge}
 
-Pick TOP 2 for ₹${budget} (Specs: ${specs}).
+Pick the absolute TOP 2 for ₹${budget} based on ${specs}.
 Return ONLY 2 names comma-separated.
     `;
 
     const top2Text = await askGemini(top2Prompt);
-    const top2 = top2Text.split(',').map(c => c.trim()).filter(c => c.length > 2).slice(0, 2);
+    const top2 = top2Text.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 2).slice(0, 2);
     console.log("Finalists:", top2);
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -226,19 +231,19 @@ Return ONLY 2 names comma-separated.
     // ─────────────────────────────────────────────────────────────────────────
     console.log("--- STAGE 5: FINAL VERDICT ---");
     const finalPrompt = `
-Perform a technical comparison for:
+Perform a final technical comparison for:
 1. ${top2[0] || candidates[0]}
 2. ${top2[1] || candidates[1] || candidates[0]}
 
-Data: ${reviewKnowledge}
+Data Context: ${reviewKnowledge}
 
-Return JSON:
+Return JSON strictly matching this structure:
 {
   "devices": [
     {
       "name": "Full model name",
       "price": 0,
-      "release_year": "2024",
+      "release_year": "${currentYear}",
       "buy_link": "https://www.amazon.in/s?k=...",
       "specs": { "processor": "...", "display": "...", "ram_storage": "...", "battery": "...", "camera_or_gpu": "..." },
       "pros": ["...", "..."],
@@ -249,7 +254,7 @@ Return JSON:
     `;
 
     const result = await askGeminiJSON(finalPrompt);
-    console.log("SUCCESS: Research project complete.");
+    console.log("SUCCESS: Research complete.");
 
     return NextResponse.json({ success: true, recommendation: result });
 
