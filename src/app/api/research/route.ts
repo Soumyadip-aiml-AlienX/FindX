@@ -43,11 +43,17 @@ async function searchYouTube(query: string, maxResults: number = 5, monthsAgo: n
   
   console.log(`STRICT DATE LOCK: Only watching videos published after ${cutoff.toDateString()} (Exactly 4 Months)`);
 
-  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&publishedAfter=${cutoff.toISOString()}&relevanceLanguage=en&regionCode=IN&key=${YOUTUBE_API_KEY}`;
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&publishedAfter=${cutoff.toISOString()}&key=${YOUTUBE_API_KEY}`;
 
   try {
     const res = await fetch(url);
     const data = await res.json();
+    
+    if (data.error) {
+      console.error(`YOUTUBE API ERROR (${query.substring(0,20)}...):`, data.error.message);
+      return [];
+    }
+
     if (data.items) {
       return data.items.map((item: any) => ({
         id: item.id.videoId,
