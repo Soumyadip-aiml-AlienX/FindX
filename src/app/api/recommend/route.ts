@@ -58,7 +58,16 @@ async function askGeminiJSON(prompt: string): Promise<any> {
     contents: prompt,
     config: { responseMimeType: "application/json" }
   });
-  return JSON.parse(res.text || "{}");
+  
+  const text = res.text || "{}";
+  try {
+    // Attempt to clean the response if it contains markdown backticks
+    const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanedText);
+  } catch (e) {
+    console.error("JSON Parsing Error. Raw text:", text);
+    throw new Error("Invalid AI Response Format");
+  }
 }
 
 // Allow up to 60 seconds for the full research pipeline (Vercel Hobby max)
@@ -84,7 +93,7 @@ export async function POST(request: Request) {
     // Fetch transcripts of ALL these videos in parallel (this is "watching" them)
     const transcriptResults = await Promise.all(
       allVideos.map(async (video: any) => {
-        const text = await getTranscript(video.id, 10000);
+        const text = await getTranscript(video.id, 7000);
         return {
           title: video.title,
           date: video.publishedAt,
