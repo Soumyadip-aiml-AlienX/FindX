@@ -212,9 +212,6 @@ export async function POST(request: Request) {
     }
 
     console.log("--- STAGE 1: SEARCHING (TRUSTED CHANNELS ONLY) ---");
-    const excludeQuery = excludedBrands && excludedBrands.length > 0 
-      ? excludedBrands.map((b: string) => ` -"${b}"`).join('') 
-      : '';
     
     // We will do multiple targeted searches to ensure we get videos from the trusted list
     const targetChannels = (category === 'mobile' ? TRUSTED_CHANNELS.mobile : TRUSTED_CHANNELS.laptop).slice(0, 8);
